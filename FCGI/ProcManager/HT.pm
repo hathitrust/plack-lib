@@ -73,5 +73,9 @@ sub __get_root {
     return $tmp_root;
 }
 
+END {
+    cleanup();
+}
+
 
 1;
