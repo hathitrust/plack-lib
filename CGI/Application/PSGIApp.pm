@@ -76,6 +76,7 @@ sub run {
     my $self = shift;
     my $env = shift;
     
+    $self->{__HEADER_PROPS} = {};
     $self->{__QUERY_OBJ} = CGI::PSGI->new($env);
     my $body = do {
         local $ENV{CGI_APP_RETURN_ONLY} = 1;
