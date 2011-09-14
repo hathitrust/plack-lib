@@ -10,7 +10,7 @@ use Plack::Response;
 
 use Tie::FileLRUCache;
 
-use Plack::Util::Accessor qw( key_prefix credit_rate max_debt cache now cache_key store headers request );
+use Plack::Util::Accessor qw( key_prefix credit_rate max_debt cache cache_key store headers request );
 
 sub new {
     my $class = shift;
@@ -21,9 +21,12 @@ sub new {
     }
     
     $self->cache(Tie::FileLRUCache->new({ -cache_dir => "/tmp/chokedb", -keep_last=> 100 }));
-    $self->now(time());
-
     $self;
+}
+
+sub now {
+    my $self = shift;
+    return time();
 }
 
 
@@ -50,7 +53,7 @@ sub call {
     $self->cache_key($self->client_identifier($env));
     my ( $in_cache, $store ) = $self->cache->check({ -key => $self->cache_key });
     unless ( $in_cache ) {
-        $store = { ts => $now };
+        $store = { ts => $self->now };
     }
     $self->store($store);
     
