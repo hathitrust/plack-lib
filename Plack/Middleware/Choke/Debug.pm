@@ -25,10 +25,12 @@ sub test {
         }
         
         $self->store->{bytes_debt}->{$seq} += 1 unless ( $request->param('ping') );
+        
 
         if ( $self->store->{until_ts} ) {
             if ( $self->now > $self->store->{until_ts} && ! $request->param('ping') ) {
                 # throttling is OVER!
+                $message = qq{THROTTLING IS OVER!};
                 $self->store->{bytes_debt}->{$seq} = 0;
                 delete $self->store->{until_ts};
             } else {
@@ -54,7 +56,7 @@ sub test {
     $self->headers->{'X-Choke-UntilEpoch'} = $self->store->{until_ts} if ( $self->store->{until_ts} );
     $self->headers->{'X-Choke-Debt'} = $self->store->{bytes_debt}->{$seq};
     $self->headers->{'X-Choke-Max'} = $max_debt;
-    $self->headers->{'X-Choke-Credit'} = $seq;
+    $self->headers->{'X-Choke-Credit'} = qq{[$seq]};
     $self->headers->{'X-Choke-Ping'} = $request->param('ping');
     
     
