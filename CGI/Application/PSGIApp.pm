@@ -88,9 +88,9 @@ sub run {
         # copy $env to %ENV to make it accessible to
         # our application
         local %ENV = %ENV;
-        foreach my $key ( keys %$env ) {
-            $ENV{$key} = $$env{$key};
-        }
+        # foreach my $key ( keys %$env ) {
+        #     $ENV{$key} = $$env{$key};
+        # }
         $ENV{CGI_APP_RETURN_ONLY} = 1;
         $self->_run;
     };
