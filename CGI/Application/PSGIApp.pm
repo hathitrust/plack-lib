@@ -40,13 +40,19 @@ sub _run {
     }
 
     # Process run mode!
-    my $body = $self->__get_body($rm);
-
-    # Support scalar-ref for body return
-    $body = $$body if ref $body eq 'SCALAR';
+    my $body;
+    eval {
+      $body = $self->__get_body($rm);
+      # Support scalar-ref for body return
+      $body = $$body if ref $body eq 'SCALAR';
+    };
+    my $error = $@;
 
     # Call cgiapp_postrun() hook
     $self->call_hook('postrun', \$body);
+
+    # rethrow exception
+    if ( $error ) { die $error; }
 
     # Set up HTTP headers
     my $headers = $self->_send_headers();
