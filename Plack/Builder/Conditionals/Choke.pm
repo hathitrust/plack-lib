@@ -27,7 +27,7 @@ sub env {
     my $not;
     my $key;
     my @args;
-    if ( $_[0] == '!' ) {
+    if ( $_[0] eq '!' ) {
         $not = shift;
         push @args, $not;
     }
@@ -48,16 +48,22 @@ sub param {
     my $not;
     my $key;
     my @args;
-    if ( $_[0] == '!' ) {
+    if ( $_[0] eq '!' ) {
         $not = shift;
     }
     $key = shift;
+    my $value = shift;
     return sub {
         my $env = shift;
         my $request = Plack::Request->new($env);
         my $check = $request->param($key);
+        if ( $value ) {
+            $check = $check eq $value;
+        } else {
+            $check = 1 if ( $check );
+        }
         if ( $not ) { $check = ! $check };
-        print STDERR "PARAM :: $key :: $check :: $$env{QUERY_STRING} :: $$env{HTTP_QUERY_STRING}\n";
+        print STDERR "PARAM :: $key :: [$check] :: $$env{QUERY_STRING} :: $$env{HTTP_QUERY_STRING}\n";
         return $check;
     }
 }
