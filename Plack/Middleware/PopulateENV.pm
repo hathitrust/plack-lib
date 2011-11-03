@@ -12,6 +12,9 @@ sub call {
         $ENV{$key} = $$env{$key};
     }
     
+    my $app_name = Debug::DUtils::___determine_app(); # $self->app_name;
+    $$env{'psgix.app_name'} = $app_name;
+    
     my $res = $self->app->($env);
 
     return $res if ref $res eq 'ARRAY';

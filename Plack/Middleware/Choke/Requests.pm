@@ -16,6 +16,7 @@ sub test {
         
     my $tx_credit = 0; my $reset = 0;
     my ( $max_debt, $max_debt_unit ) = @{ $self->max_debt };
+    $max_debt *= $self->multiplier;
     
     unless ( $self->data->{request_debt} ) {
         $self->data->{request_debt} = 0;

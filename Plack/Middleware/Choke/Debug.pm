@@ -17,37 +17,32 @@ sub test {
     my $request = $self->request;
     my $seq = $request->param('seq');
     my ( $max_debt, $max_debt_unit ) = @{ $self->max_debt };
+    $max_debt *= $self->multiplier;
 
-    if ( $seq % 6 == 0 ) {
-        
-        unless ( ref($store->{bytes_debt}) ) {
-            $store->{bytes_debt} = {};
-        }
-        
-        $self->data->{bytes_debt}->{$seq} += 1 unless ( $request->param('ping') );
-        
-
-        if ( $self->data->{until_ts} ) {
-            if ( $self->now > $self->data->{until_ts} && ! $request->param('ping') ) {
-                # throttling is OVER!
-                $message = qq{THROTTLING IS OVER!};
-                $self->data->{bytes_debt}->{$seq} = 0;
-                delete $self->data->{until_ts};
-            } else {
-                $allowed = 0;
-                $message = qq{STILL THROTTLED DEBUG : } . $self->data->{until_ts};
-            }
-        } elsif ( $self->data->{bytes_debt}->{$seq} == 1 ) {
-            $allowed = 0;
-            unless ( $max_debt_unit =~ m,^\+, ) {
-                $max_debt_unit = qq{+ 1 $max_debt_unit};
-            }
-            $self->data->{until_ts} = UnixDate($max_debt_unit, "%s");
-            $message = qq{NEWLY THROTTLED DEBUG};
-        }
-
+    unless ( ref($store->{bytes_debt}) ) {
+        $store->{bytes_debt} = {};
     }
     
+    $self->data->{bytes_debt}->{$seq} += 1 unless ( $request->param('ping') );
+
+    if ( $self->data->{until_ts} ) {
+        if ( $self->now > $self->data->{until_ts} ) {
+            # throttling is OVER!
+            $message = qq{THROTTLING IS OVER!};
+            $self->data->{bytes_debt}->{$seq} = 0;
+            delete $self->data->{until_ts};
+        } else {
+            $allowed = 0;
+            $message = qq{STILL THROTTLED DEBUG : } . $self->data->{until_ts};
+        }
+    } elsif ( $self->data->{bytes_debt}->{$seq} && ! $request->param('ping') ) {
+        $allowed = 0;
+        unless ( $max_debt_unit =~ m,^\+, ) {
+            $max_debt_unit = qq{+ 1 $max_debt_unit};
+        }
+        $self->data->{until_ts} = UnixDate($max_debt_unit, "%s");
+        $message = qq{NEWLY THROTTLED DEBUG};
+    }
     
     $self->headers->{'X-Choked-Allowed'} = $allowed;
     $self->headers->{'X-Choke'} = 'debug';
@@ -58,7 +53,6 @@ sub test {
     $self->headers->{'X-Choke-Max'} = $max_debt;
     $self->headers->{'X-Choke-Credit'} = qq{[$seq]};
     $self->headers->{'X-Choke-Ping'} = $request->param('ping');
-    
     
     print STDERR "ER: $allowed\n";
     return ( $allowed, $message );

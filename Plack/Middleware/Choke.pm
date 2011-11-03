@@ -8,8 +8,6 @@ use Plack::Util;
 use Plack::Request;
 use Plack::Response;
 
-use Context;
-use MdpConfig;
 use Debug::DUtils;
 use Utils;
 use Utils::Cache::JSON;
@@ -18,32 +16,27 @@ use Digest::SHA qw(sha256_hex);
 
 use File::Slurp;
 
-use Plack::Util::Accessor qw( app_name key credit_rate max_debt cache cache_key headers request config context client_identifier_sub data client_identifier client_idtype client_hash response cache_dir_key );
+use Plack::Util::Accessor qw( 
+    app_name 
+    key 
+    credit_rate 
+    max_debt 
+    headers 
+    request 
+    client_identifier_sub 
+    cache
+    data 
+    post_processed
+    client_identifier 
+    client_idtype 
+    client_hash 
+    response
+    multiplier
+);
 
 sub new {
     my $class = shift;
     my $self = $class->SUPER::new(@_);
-    
-    # get configuration
-    my $app_name = Debug::DUtils::___determine_app(); # $self->app_name;
-    my $config = new MdpConfig(
-                               Utils::get_uber_config_path($app_name),
-                               $ENV{SDRROOT} . "/$app_name/lib/Config/global.conf",
-                               $ENV{SDRROOT} . "/$app_name/lib/Config/local.conf"
-                              );
-        
-
-    my $C = new Context;
-    $C->set_object('MdpConfig', $config);
-    $self->context($C);
-    
-    $self->setup_cache();
-    
-    unless ( $self->key ) {
-        $self->key($self->app_name);
-    } else {
-        $self->key($self->app_name . "-" . $self->key);
-    }
     
     unless ( $self->response ) {
         $self->response({});
@@ -53,11 +46,13 @@ sub new {
     }
     unless ( $self->response->{filename} ) {
         if ( $self->response->{content_type} eq 'image/jpeg' ) {
-            $self->response->{filename} = $ENV{SDRROOT} . "/mdp-web/graphics/503_image.jpg";
+            $self->response->{filename} = $ENV{SDRROOT} . "/mdp-web/graphics/503_image_distorted.jpg";
         } else {
             $self->response->{filename} = $ENV{SDRROOT} . "/mdp-web/503_error.html";
         }
     }
+    
+    $self->post_processed(0);
     
     $self;
 }
@@ -92,34 +87,55 @@ sub setup_client_identifier {
     $self->client_hash(join('.', $self->app_name, $client_identifier_hashed));
 }
 
-sub setup_cache {
-    my ( $self ) = @_;
-    my $cache_dir_key = $self->cache_dir_key || "choke_cache_dir";
+sub setup_context {
+    my ( $self, $env ) = @_;
 
-    my $cache_dir = $self->context->get_object('MdpConfig')->get($cache_dir_key); 
-    if ( $cache_dir =~ m,___RAM___, ) {
-        my $ramdir = Utils::Extract::__get_root();
-        $cache_dir =~ s,/___RAM___,$ramdir,;
-        $cache_dir .= "/";
-    } else {
-       $cache_dir = Utils::get_true_cache_dir($self->context, $cache_dir_key) . "/"; 
+    my $request = Plack::Request->new($env);
+    $self->request($request);
+
+    unless ( $self->app_name ) {
+        my $app_name = $request->env->{'psgix.app_name'};
+        $self->app_name($app_name)
     }
-    print STDERR "CHOKE: $cache_dir\n";
-    $self->cache(Utils::Cache::JSON->new($cache_dir));
+    unless ( $self->key ) {
+        $self->key($self->app_name);
+    }
+    $self->key($self->app_name . "-" . $self->key);
+    $self->cache($request->env->{'psgix.cache'});
+    
+    # check for cookie...
+    my $cookie_name = qq{CHOKE-} . (uc $self->key);
+    if ( defined($request->cookies->{$cookie_name}) ) {
+        $request->env->{CHOKE_MAX_DEBT_MULTIPLIER} = $request->cookies->{$cookie_name};
+    }
+    
+    if ( defined($request->env->{CHOKE_MAX_DEBT_MULTIPLIER}) ) {
+        $self->multiplier($request->env->{CHOKE_MAX_DEBT_MULTIPLIER});
+    } else {
+        $self->multiplier(1);
+    }
 }
 
 sub call {
     my ( $self, $env ) = @_;
     
     my $allowed = 1; my $message;
-    my $request = Plack::Request->new($env);
-    $self->request($request);
     
     $self->headers({});
     
-    $self->setup_client_identifier($request);
+    $self->setup_context($env);
+    $self->setup_client_identifier($self->request);
     
     my $data = $self->cache->Get($self->client_hash, $self->key);
+    if ( ref($data) && $self->multiplier =~ m,:, ) {
+        # check whether we need to reset here. Huzzah!
+        my ( $multiplier, $timestamp ) = split(/:/, $self->multiplier);
+        $self->multiplier($multiplier);
+        if ( $timestamp > $$data{ts} ) {
+            # timestamp is newer than this cache, so reset
+            $data = undef;
+        }
+    }
     unless ( ref($data) ) {
         $data = { ts => $self->now, debug => 'NOT FOUND', idtype => $self->client_idtype, client_identifier => $self->client_identifier };
     } else {
@@ -171,20 +187,33 @@ sub call {
     $env->{'psgix.choked'} = 1;
 
     my $res = $self->app->($env);
-    $self->response_cb($res, sub {
-       my $res = shift;
-       if ( $res ) {
+    
+    if ( ref($res) eq 'ARRAY' ) {
+        # simple, don't really want to do the callbacks...
+        $self->_add_headers($res);
 
-           my $h = Plack::Util::headers($res->[1]);
-           foreach my $key ( keys %{ $self->headers } ) {
-               $h->set( $key, $self->headers->{$key}) if ( $self->headers->{$key} );
-           }
-           
-           return sub {
-               my $chunk = shift;
-               return $self->post_process($chunk);
-           }
-       }
+        $self->post_process($res->[2]);
+        $self->finish_processing();
+        return $res;
+    }
+    
+    $self->response_cb($res, sub {
+        my $res = shift;
+        if ( $res ) {
+
+            $self->_add_headers($res);
+
+            return sub {
+                my $chunk = shift;
+                if ( length($chunk) ) {
+                    return $self->post_process($chunk);
+                } else {
+                    print STDERR "MMM\n";
+                    $self->finish_processing;
+                    return;
+                }
+            }
+        }
     });
     
 }
@@ -193,6 +222,23 @@ sub post_process {
     my ( $self, $chunk ) = @_;
     # NOOP
     return $chunk;
+}
+
+sub finish_processing {
+    my ( $self ) = @_;
+    $self->cache->Set($self->client_hash, $self->key, $self->data, 1); # force save
+    # if ( $self->post_processed ) {
+    #     print STDERR "POST PROCESSING FINISHED\n";
+    #     $self->cache->Set($self->client_hash, $self->key, $self->data, 1); # force save
+    # }
+}
+
+sub _add_headers {
+    my ( $self, $res ) = @_;
+    my $h = Plack::Util::headers($res->[1]);
+    foreach my $key ( keys %{ $self->headers } ) {
+        $h->set( $key, $self->headers->{$key}) if ( $self->headers->{$key} );
+    }
 }
 
 1;

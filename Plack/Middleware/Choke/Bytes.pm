@@ -12,6 +12,7 @@ sub test {
         
     my $tx_credit = 0; my $reset = 0;
     my ( $max_debt, $max_debt_unit ) = @{ $self->max_debt };
+    $max_debt *= $self->multiplier;
     
     unless ( $self->data->{bytes_debt} ) {
         $self->data->{bytes_debt} = 0;
@@ -69,10 +70,13 @@ sub test {
 sub post_process {
     my ( $self, $chunk ) = @_;
     unless ( $chunk ) {
-        $self->cache->Set($self->client_hash, $self->key, $self->data, 1); # force save
+        # $self->cache->Set($self->client_hash, $self->key, $self->data, 1); # force save
     } else {
         my $content_length = length($chunk);
         $self->data->{bytes_debt} += $content_length;
+        print STDERR "POST PROCESSING: " . $self->data->{bytes_debt} . "\n";
+        $self->post_processed(1);
+        $self->finish_processing();
     }
     return $chunk;
 }
