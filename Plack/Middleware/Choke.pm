@@ -19,6 +19,7 @@ use File::Slurp;
 use Plack::Util::Accessor qw( 
     app_name 
     key 
+    cache_key
     credit_rate 
     max_debt 
     headers 
@@ -100,11 +101,12 @@ sub setup_context {
     unless ( $self->key ) {
         $self->key($self->app_name);
     }
-    $self->key($self->app_name . "-" . $self->key);
+    
+    $self->cache_key($self->app_name . "-" . $self->key);
     $self->cache($request->env->{'psgix.cache'});
     
     # check for cookie...
-    my $cookie_name = qq{CHOKE-} . (uc $self->key);
+    my $cookie_name = qq{CHOKE-} . (uc $self->cache_key);
     if ( defined($request->cookies->{$cookie_name}) ) {
         $request->env->{CHOKE_MAX_DEBT_MULTIPLIER} = $request->cookies->{$cookie_name};
     }
@@ -126,7 +128,7 @@ sub call {
     $self->setup_context($env);
     $self->setup_client_identifier($self->request);
     
-    my $data = $self->cache->Get($self->client_hash, $self->key);
+    my $data = $self->cache->Get($self->client_hash, $self->cache_key);
     if ( ref($data) && $self->multiplier =~ m,:, ) {
         # check whether we need to reset here. Huzzah!
         my ( $multiplier, $timestamp ) = split(/:/, $self->multiplier);
@@ -147,7 +149,7 @@ sub call {
     ( $allowed, $message ) = $self->test($env);
     
     $self->data->{ts} = $self->now;
-    $self->cache->Set($self->client_hash, $self->key, $self->data, 1); # force save
+    $self->cache->Set($self->client_hash, $self->cache_key, $self->data, 1); # force save
     
     $self->headers->{'X-Choke-Debug'} = qq{$allowed :: $message};
 
@@ -226,7 +228,7 @@ sub post_process {
 
 sub finish_processing {
     my ( $self ) = @_;
-    $self->cache->Set($self->client_hash, $self->key, $self->data, 1); # force save
+    $self->cache->Set($self->client_hash, $self->cache_key, $self->data, 1); # force save
     # if ( $self->post_processed ) {
     #     print STDERR "POST PROCESSING FINISHED\n";
     #     $self->cache->Set($self->client_hash, $self->key, $self->data, 1); # force save
