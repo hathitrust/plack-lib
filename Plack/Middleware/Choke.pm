@@ -153,9 +153,13 @@ sub call {
     
     $self->headers->{'X-Choke-Debug'} = qq{$allowed :: $message};
 
-    unless ( $allowed ) {
-        my $response = Plack::Response->new(503);
+    unless ( $allowed && ! $self->request->param('ping') ) {
+        my $code = $allowed ? 200 : 503;
+        my $response = Plack::Response->new($code);
         my $response_headers = $response->headers;
+        
+        # don't cache 503 messages
+        $self->headers->{'Cache-Control'} = "max-age=0, no-store";
 
         $self->headers->{'Content-Type'} = $self->response->{content_type};
         $response->headers($self->headers);
