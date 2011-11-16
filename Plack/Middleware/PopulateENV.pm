@@ -3,6 +3,7 @@ use strict;
 use parent qw(Plack::Middleware);
 
 use Carp ();
+use Debug::DUtils;
 
 sub call {
     my($self, $env) = @_;
