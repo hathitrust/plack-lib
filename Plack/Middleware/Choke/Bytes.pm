@@ -69,14 +69,10 @@ sub test {
 
 sub post_process {
     my ( $self, $chunk ) = @_;
-    unless ( $chunk ) {
-        # $self->cache->Set($self->client_hash, $self->key, $self->data, 1); # force save
-    } else {
-        my $content_length = length($chunk);
+    my $content_length = length($chunk);
+    if ( $content_length ) {
         $self->data->{bytes_debt} += $content_length;
-        print STDERR "POST PROCESSING: " . $self->data->{bytes_debt} . "\n";
-        $self->post_processed(1);
-        $self->finish_processing();
+        $self->update_cache();
     }
     return $chunk;
 }

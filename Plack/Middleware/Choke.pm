@@ -149,7 +149,7 @@ sub call {
     ( $allowed, $message ) = $self->test($env);
     
     $self->data->{ts} = $self->now;
-    $self->cache->Set($self->client_hash, $self->cache_key, $self->data, 1); # force save
+    $self->update_cache();
     
     $self->headers->{'X-Choke-Debug'} = qq{$allowed :: $message};
 
@@ -199,7 +199,6 @@ sub call {
         $self->_add_headers($res);
 
         $self->post_process($res->[2]);
-        $self->finish_processing();
         return $res;
     }
     
@@ -214,8 +213,6 @@ sub call {
                 if ( length($chunk) ) {
                     return $self->post_process($chunk);
                 } else {
-                    print STDERR "MMM\n";
-                    $self->finish_processing;
                     return;
                 }
             }
@@ -230,13 +227,9 @@ sub post_process {
     return $chunk;
 }
 
-sub finish_processing {
+sub update_cache {
     my ( $self ) = @_;
     $self->cache->Set($self->client_hash, $self->cache_key, $self->data, 1); # force save
-    # if ( $self->post_processed ) {
-    #     print STDERR "POST PROCESSING FINISHED\n";
-    #     $self->cache->Set($self->client_hash, $self->key, $self->data, 1); # force save
-    # }
 }
 
 sub _add_headers {
