@@ -28,13 +28,8 @@ sub call {
     my($self, $env) = @_;
     
     my $app_name = $$env{'psgix.app_name'};
-    my $config = new MdpConfig(
-                               Utils::get_uber_config_path($app_name),
-                               $ENV{SDRROOT} . "/$app_name/lib/Config/global.conf",
-                               $ENV{SDRROOT} . "/$app_name/lib/Config/local.conf"
-                              );
-
-
+    my $config = $$env{'psgix.config'};
+    
     my $cache_dir = $config->get($self->config_key);
     if ( $cache_dir =~ m,___CACHE___, ) {
        $cache_dir = Utils::get_true_cache_dir($config, $self->config_key);
