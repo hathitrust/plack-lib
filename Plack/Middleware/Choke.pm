@@ -149,6 +149,37 @@ sub call {
     ( $allowed, $message ) = $self->test($env);
     
     $self->data->{ts} = $self->now;
+
+    unless ( $allowed ) {
+        $self->data->{log} = [] unless ( ref($self->data->{log}) );
+        my $is_newly_throttled = ( $self->data->{until_ts} > $self->data->{ts} );
+        if ( $is_newly_throttled ) {
+
+            my $previous_throttle_ts = '-';
+            if ( scalar(@{ $self->data->{log} }) > 0 ) {
+                $previous_throttle_ts = Utils::Time::iso_Time('datetime', $self->data->{log}->[-1]);
+            }
+            Utils::Logger::__Log_string($$env{'psgix.config'}, 
+                join("|",
+                    $$env{REMOTE_ADDR},
+                    Utils::Time::iso_Time('datetime', $self->data->{ts}),
+                    $previous_throttle_ts,
+                    $self->client_idtype,
+                    $self->cache_key,
+                    $self->headers->{'X-Choke'},
+                    $self->headers->{'X-Choke-Debt'},
+                    $self->headers->{'X-Choke-Max'},
+                    $self->headers->{'X-Choke-Until'},
+                ),
+                "choke_logfile",
+                '___QUERY___',
+                'choke'
+            );
+
+            push @{ $self->data->{log} }, $self->now;
+        }
+    }
+    
     $self->update_cache();
     
     $self->headers->{'X-Choke-Debug'} = qq{$allowed :: $message};
