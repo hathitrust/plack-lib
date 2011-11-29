@@ -10,10 +10,7 @@ use Utils;
 sub call {
     my($self, $env) = @_;
     
-    local %ENV = %ENV;
-    foreach my $key ( keys %$env ) {
-        $ENV{$key} = $$env{$key};
-    }
+    local %ENV = %{ $env };
     
     my $app_name = Debug::DUtils::___determine_app(); # $self->app_name;
     $$env{'psgix.app_name'} = $app_name;

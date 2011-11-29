@@ -139,30 +139,30 @@ sub call {
         }
     }
     unless ( ref($data) ) {
-        $data = { ts => $self->now, debug => 'NOT FOUND', idtype => $self->client_idtype, client_identifier => $self->client_identifier };
+        $data = { _ts => $self->now, _debug => 'NOT FOUND', _idtype => $self->client_idtype, _client_identifier => $self->client_identifier };
     } else {
-        $$data{debug} = "LOADED: " . scalar localtime;
+        $$data{_debug} = "LOADED: " . scalar localtime;
     }
 
     $self->data($data);
     
     ( $allowed, $message ) = $self->test($env);
     
-    $self->data->{ts} = $self->now;
+    $self->data->{_ts} = $self->now;
 
     unless ( $allowed ) {
-        $self->data->{log} = [] unless ( ref($self->data->{log}) );
-        my $is_newly_throttled = ( $self->data->{until_ts} > $self->data->{ts} );
+        $self->data->{_log} = [] unless ( ref($self->data->{_log}) );
+        my $is_newly_throttled = ( $self->data->{_until_ts} > $self->data->{_ts} );
         if ( $is_newly_throttled ) {
 
             my $previous_throttle_ts = '-';
-            if ( scalar(@{ $self->data->{log} }) > 0 ) {
-                $previous_throttle_ts = Utils::Time::iso_Time('datetime', $self->data->{log}->[-1]);
+            if ( scalar(@{ $self->data->{_log} }) > 0 ) {
+                $previous_throttle_ts = Utils::Time::iso_Time('datetime', $self->data->{_log}->[-1]);
             }
             Utils::Logger::__Log_string($$env{'psgix.config'}, 
                 join("|",
                     $$env{REMOTE_ADDR},
-                    Utils::Time::iso_Time('datetime', $self->data->{ts}),
+                    Utils::Time::iso_Time('datetime', $self->data->{_ts}),
                     $previous_throttle_ts,
                     $self->client_idtype,
                     $self->cache_key,
@@ -176,7 +176,7 @@ sub call {
                 'choke'
             );
 
-            push @{ $self->data->{log} }, $self->now;
+            push @{ $self->data->{_log} }, $self->now;
         }
     }
     
@@ -227,6 +227,7 @@ sub call {
     
     if ( ref($res) eq 'ARRAY' ) {
         # simple, don't really want to do the callbacks...
+        $self->process_post_multiplier($res);
         $self->_add_headers($res);
 
         $self->post_process($res->[2]);
@@ -237,6 +238,7 @@ sub call {
         my $res = shift;
         if ( $res ) {
 
+            $self->process_post_multiplier($res);
             $self->_add_headers($res);
 
             return sub {
@@ -261,6 +263,29 @@ sub post_process {
 sub update_cache {
     my ( $self ) = @_;
     $self->cache->Set($self->client_hash, $self->cache_key, $self->data, 1); # force save
+}
+
+sub process_post_multiplier {
+    my ( $self, $res ) = @_;
+    
+    # look for X-HathiTrust-InCopyright header
+    my $debt_multiplier_target = Plack::Util::header_get($res->[1], "X-HathiTrust-InCopyright");
+    if ( defined($debt_multiplier_target) ) {
+        my $config = $self->request->env->{'psgix.config'};
+        
+        # this needs to exist
+        my $debt_multiplier_key = qq{choke_debt_multiplier_for_$debt_multiplier_target};
+        my $debt_multiplier = $config->has($debt_multiplier_key) ? 
+                              $config->get($debt_multiplier_key) : 
+                              $config->get(qq{choke_debt_multiplier_for_anyone});
+        print STDERR "APPLYING DEBT MULTIPLIER : $debt_multiplier\n";
+        $self->apply_debt_multiplier($debt_multiplier);
+    }
+}
+
+sub apply_debt_multiplier {
+    my ( $self, $debt_multiplier ) = @_;
+    # NOOP
 }
 
 sub _add_headers {
