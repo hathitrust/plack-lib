@@ -227,9 +227,10 @@ sub call {
     
     if ( ref($res) eq 'ARRAY' ) {
         # simple, don't really want to do the callbacks...
+        
         $self->process_post_multiplier($res);
         $self->_add_headers($res);
-
+        
         $self->post_process($res->[2]);
         return $res;
     }
