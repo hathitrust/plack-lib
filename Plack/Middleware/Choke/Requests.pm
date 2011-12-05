@@ -9,8 +9,6 @@ use Plack::Request;
 sub test {
     my ( $self, $env ) = @_;
 
-    ## print STDERR Dumper($self) . "\n";
-
     my $delta = ( $self->now - $self->data->{'_ts'} );
     my $allowed = 1; my $message; my $rate;
 
@@ -22,11 +20,15 @@ sub test {
         $self->data->{requests} = { debt => 0, max_debt => join(" / ", @{ $self->max_debt} ) };
         if ( ref($self->credit_rate) ) {
             $self->data->{requests}->{credit_rate} = join(" / ", @{ $self->credit_rate });
+            if ( $self->rate_multiplier != 1 ) {
+                $self->data->{requests}->{credit_rate} .= qq{ * $self->rate_multiplier};
+            }
         }
     }
 
     if ( ref($self->credit_rate) ) {
         my ( $credit_rate, $unit ) = @{ $self->credit_rate };
+        $credit_rate *= $self->rate_multiplier;
 
         if ( $unit eq 'min' ) {
             $credit_rate = $credit_rate / 60.0;

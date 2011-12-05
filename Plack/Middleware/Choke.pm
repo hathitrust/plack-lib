@@ -33,6 +33,7 @@ use Plack::Util::Accessor qw(
     client_hash 
     response
     multiplier
+    rate_multiplier
 );
 
 sub new {
@@ -115,6 +116,12 @@ sub setup_context {
         $self->multiplier($request->env->{CHOKE_MAX_DEBT_MULTIPLIER});
     } else {
         $self->multiplier(1);
+    }
+
+    if ( defined($request->env->{CHOKE_RATE_MULTIPLIER}) ) {
+        $self->rate_multiplier($request->env->{CHOKE_RATE_MULTIPLIER});
+    } else {
+        $self->rate_multiplier(1);
     }
 }
 
