@@ -247,12 +247,20 @@ sub process_post_multiplier {
     
     # look for X-HathiTrust-InCopyright header
     # format: X-HathiTrust-InCopyright: user=staff,superuser
-    my $debt_multiplier_roles = Plack::Util::header_get($res->[1], "X-HathiTrust-InCopyright");
-    if ( defined($debt_multiplier_roles) ) {
+    # assumes that any non-authorized access to copyright material
+    # is handled by the wrapped app
+    my $in_copyright_header = Plack::Util::header_get($res->[1], "X-HathiTrust-InCopyright");
+    if ( defined($in_copyright_header) ) {
         my $config = $self->request->env->{'psgix.config'};
         
         my $debt_multipler = $config->get(qq{choke_debt_multiplier_for_anyone});
-        foreach my $role ( reverse(split(/,/, $debt_multiplier_roles)) ) {
+        my @roles = ();
+        my @tmp = split(/,/, (split(/;/, $in_copyright_header))[0]);
+        $tmp[0] =~ s,user=,,;
+        push @roles, join('_', @tmp) if ( scalar @tmp > 1 );
+        push @roles, $tmp[0];
+        
+        foreach my $role ( @roles ) {
             my $debt_multiplier_key = qq{choke_debt_multiplier_for_$role};
             if ( $config->has($debt_multiplier_key) ) {
                 $debt_multiplier = $config->get($debt_multiplier_key);

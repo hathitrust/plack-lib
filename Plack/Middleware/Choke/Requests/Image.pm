@@ -15,7 +15,6 @@ sub test {
     if ( $self->request->param('size') ) {
         # work with size
         my $size = int($self->request->param('size')) || 1;
-        print STDERR "SIZE = $size :: " . ( 100 / $size ) . "\n";
         $multiplier *= ( 100 / $size );
     } elsif ( $self->request->param('width') || $self->request->param('height') ) {
         # work with height/width
