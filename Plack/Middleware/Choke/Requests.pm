@@ -71,7 +71,7 @@ sub test {
     $self->headers->{'X-Choke-Now'} = UnixDate("epoch " . $self->now, "%Y-%m-%d %H:%M:%S");
     $self->headers->{'X-Choke-Until'} = UnixDate("epoch " . $self->data->{_until_ts}, "%Y-%m-%d %H:%M:%S") if ( $self->data->{_until_ts} );
     $self->headers->{'X-Choke-UntilEpoch'} = $self->data->{_until_ts} if ( $self->data->{_until_ts} );
-    $self->headers->{'X-Choke-Debt'} = $last_debt; # $self->data->{requests}->{debt};
+    $self->headers->{'X-Choke-Debt'} = $last_debt;
     $self->headers->{'X-Choke-Max'} = $max_debt;
     $self->headers->{'X-Choke-Credit'} = $tx_credit;
     $self->headers->{'X-Choke-Message'} = $message;

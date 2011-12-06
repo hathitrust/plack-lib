@@ -27,7 +27,6 @@ use Plack::Util::Accessor qw(
     client_identifier_sub 
     cache
     data 
-    post_processed
     client_identifier 
     client_idtype 
     client_hash 
@@ -53,8 +52,6 @@ sub new {
             $self->response->{filename} = $ENV{SDRROOT} . "/mdp-web/503_error.html";
         }
     }
-    
-    $self->post_processed(0);
     
     $self;
 }
@@ -92,6 +89,8 @@ sub setup_client_identifier {
 sub setup_context {
     my ( $self, $env ) = @_;
 
+    $self->headers({});
+    
     my $request = Plack::Request->new($env);
     $self->request($request);
 
@@ -105,12 +104,6 @@ sub setup_context {
     
     $self->cache_key($self->app_name . "-" . $self->key);
     $self->cache($request->env->{'psgix.cache'});
-    
-    # check for cookie...
-    my $cookie_name = qq{CHOKE-} . (uc $self->cache_key);
-    if ( defined($request->cookies->{$cookie_name}) ) {
-        $request->env->{CHOKE_MAX_DEBT_MULTIPLIER} = $request->cookies->{$cookie_name};
-    }
     
     if ( defined($request->env->{CHOKE_MAX_DEBT_MULTIPLIER}) ) {
         $self->multiplier($request->env->{CHOKE_MAX_DEBT_MULTIPLIER});
@@ -130,21 +123,10 @@ sub call {
     
     my $allowed = 1; my $message;
     
-    $self->headers({});
-    
     $self->setup_context($env);
     $self->setup_client_identifier($self->request);
     
     my $data = $self->cache->Get($self->client_hash, $self->cache_key);
-    if ( ref($data) && $self->multiplier =~ m,:, ) {
-        # check whether we need to reset here. Huzzah!
-        my ( $multiplier, $timestamp ) = split(/:/, $self->multiplier);
-        $self->multiplier($multiplier);
-        if ( $timestamp > $$data{ts} ) {
-            # timestamp is newer than this cache, so reset
-            $data = undef;
-        }
-    }
     unless ( ref($data) ) {
         $data = { _ts => $self->now, _debug => 'NOT FOUND', _idtype => $self->client_idtype, _client_identifier => $self->client_identifier };
     } else {
@@ -155,85 +137,27 @@ sub call {
     
     ( $allowed, $message ) = $self->test($env);
     
+    # update timestamp
     $self->data->{_ts} = $self->now;
 
     unless ( $allowed ) {
-        $self->data->{_log} = [] unless ( ref($self->data->{_log}) );
-        my $is_newly_throttled = ( $self->data->{_until_ts} > $self->data->{_ts} );
-        if ( $is_newly_throttled ) {
-
-            my $previous_throttle_ts = '-';
-            if ( scalar(@{ $self->data->{_log} }) > 0 ) {
-                $previous_throttle_ts = Utils::Time::iso_Time('datetime', $self->data->{_log}->[-1]);
-            }
-            Utils::Logger::__Log_string($$env{'psgix.config'}, 
-                join("|",
-                    $$env{REMOTE_ADDR},
-                    Utils::Time::iso_Time('datetime', $self->data->{_ts}),
-                    $previous_throttle_ts,
-                    $self->client_idtype,
-                    $self->cache_key,
-                    $self->headers->{'X-Choke'},
-                    $self->headers->{'X-Choke-Debt'},
-                    $self->headers->{'X-Choke-Max'},
-                    $self->headers->{'X-Choke-Until'},
-                ),
-                "choke_logfile",
-                '___QUERY___',
-                'choke'
-            );
-
-            push @{ $self->data->{_log} }, $self->now;
-        }
+        $self->log_test_failure();
     }
     
     $self->update_cache();
     
-    $self->headers->{'X-Choke-Debug'} = qq{$allowed :: $message};
-
     unless ( $allowed && ! $self->request->param('ping') ) {
-        my $code = $allowed ? 200 : 503;
-        my $response = Plack::Response->new($code);
-        my $response_headers = $response->headers;
-        
-        # don't cache 503 messages
-        $self->headers->{'Cache-Control'} = "max-age=0, no-store";
-
-        $self->headers->{'Content-Type'} = $self->response->{content_type};
-        $response->headers($self->headers);
-        
-        my $content = read_file($self->response->{filename});
-
-        my $request_url = $self->request->uri;
-        $content =~ s,__REQUEST_URL__,$request_url,;
-            
-        my $app_name = $self->app_name;
-        $content =~ s,\./,/$app_name/common-web/,g;
-        
-        my $choked_until;
-        if ( $self->headers->{'X-Choke-UntilEpoch'} ) {
-            $choked_until = $self->headers->{'X-Choke-UntilEpoch'} - time();
-            my $choked_until_units = "seconds";
-            if ( $choked_until > 120 ) {
-                $choked_until_units = "minutes";
-                $choked_until = int($choked_until / 60);
-            }
-            $choked_until = qq{ You may proceed in <span id="throttle-timeout">$choked_until $choked_until_units</span>.};
-        }
-        $content =~ s,___CHOKED_UNTIL___,$choked_until,;
-        
-        $content =~ s,___MESSAGE___,$message,;
-        
-        $response->body($content);
-        return $response->finalize;
+        return $self->intercept_response($allowed);
     }
-        
+    
+    # avoid further processing by default choke policies
     $env->{'psgix.choked'} = 1;
 
     my $res = $self->app->($env);
     
     if ( ref($res) eq 'ARRAY' ) {
-        # simple, don't really want to do the callbacks...
+        # the response_cb callback approach automatically 
+        # chucks the content-length header; avoid if possible
         
         $self->process_post_multiplier($res);
         $self->_add_headers($res);
@@ -262,6 +186,51 @@ sub call {
     
 }
 
+sub intercept_response {
+    my ( $self, $allowed ) = @_;
+    
+    # the middleware can be "pinged" to check the status
+    # of the request; these need to return a status of 200
+
+    # TODO: probably should return something other than the 
+    # error documents.
+    
+    my $code = $allowed ? 200 : 503;
+    my $response = Plack::Response->new($code);
+    my $response_headers = $response->headers;
+    
+    # don't cache 503 messages
+    $self->headers->{'Cache-Control'} = "max-age=0, no-store";
+
+    $self->headers->{'Content-Type'} = $self->response->{content_type};
+    $response->headers($self->headers);
+    
+    my $content = read_file($self->response->{filename});
+
+    my $request_url = $self->request->uri;
+    $content =~ s,__REQUEST_URL__,$request_url,;
+        
+    my $app_name = $self->app_name;
+    $content =~ s,\./,/$app_name/common-web/,g;
+    
+    my $choked_until;
+    if ( $self->headers->{'X-Choke-UntilEpoch'} ) {
+        $choked_until = $self->headers->{'X-Choke-UntilEpoch'} - time();
+        my $choked_until_units = "seconds";
+        if ( $choked_until > 120 ) {
+            $choked_until_units = "minutes";
+            $choked_until = int($choked_until / 60);
+        }
+        $choked_until = qq{ You may proceed in <span id="throttle-timeout">$choked_until $choked_until_units</span>.};
+    }
+    $content =~ s,___CHOKED_UNTIL___,$choked_until,;
+    
+    $content =~ s,___MESSAGE___,$message,;
+    
+    $response->body($content);
+    return $response->finalize;
+}
+
 sub post_process {
     my ( $self, $chunk ) = @_;
     # NOOP
@@ -277,16 +246,19 @@ sub process_post_multiplier {
     my ( $self, $res ) = @_;
     
     # look for X-HathiTrust-InCopyright header
-    my $debt_multiplier_target = Plack::Util::header_get($res->[1], "X-HathiTrust-InCopyright");
-    if ( defined($debt_multiplier_target) ) {
+    # format: X-HathiTrust-InCopyright: user=staff,superuser
+    my $debt_multiplier_roles = Plack::Util::header_get($res->[1], "X-HathiTrust-InCopyright");
+    if ( defined($debt_multiplier_roles) ) {
         my $config = $self->request->env->{'psgix.config'};
         
-        # this needs to exist
-        my $debt_multiplier_key = qq{choke_debt_multiplier_for_$debt_multiplier_target};
-        my $debt_multiplier = $config->has($debt_multiplier_key) ? 
-                              $config->get($debt_multiplier_key) : 
-                              $config->get(qq{choke_debt_multiplier_for_anyone});
-        print STDERR "APPLYING DEBT MULTIPLIER : $debt_multiplier\n";
+        my $debt_multipler = $config->get(qq{choke_debt_multiplier_for_anyone});
+        foreach my $role ( reverse(split(/,/, $debt_multiplier_roles)) ) {
+            my $debt_multiplier_key = qq{choke_debt_multiplier_for_$role};
+            if ( $config->has($debt_multiplier_key) ) {
+                $debt_multiplier = $config->get($debt_multiplier_key);
+                last;
+            }
+        }
         $self->apply_debt_multiplier($debt_multiplier);
     }
 }
@@ -294,6 +266,37 @@ sub process_post_multiplier {
 sub apply_debt_multiplier {
     my ( $self, $debt_multiplier ) = @_;
     # NOOP
+}
+
+sub log_test_failure {
+    my ( $self ) = @_;
+    $self->data->{_log} = [] unless ( ref($self->data->{_log}) );
+    my $is_newly_throttled = ( $self->data->{_until_ts} > $self->data->{_ts} );
+    if ( $is_newly_throttled ) {
+
+        my $previous_throttle_ts = '-';
+        if ( scalar(@{ $self->data->{_log} }) > 0 ) {
+            $previous_throttle_ts = Utils::Time::iso_Time('datetime', $self->data->{_log}->[-1]);
+        }
+        Utils::Logger::__Log_string($$env{'psgix.config'}, 
+            join("|",
+                $$env{REMOTE_ADDR},
+                Utils::Time::iso_Time('datetime', $self->data->{_ts}),
+                $previous_throttle_ts,
+                $self->client_idtype,
+                $self->cache_key,
+                $self->headers->{'X-Choke'},
+                $self->headers->{'X-Choke-Debt'},
+                $self->headers->{'X-Choke-Max'},
+                $self->headers->{'X-Choke-Until'},
+            ),
+            "choke_logfile",
+            '___QUERY___',
+            'choke'
+        );
+
+        push @{ $self->data->{_log} }, $self->now;
+    }
 }
 
 sub _add_headers {
