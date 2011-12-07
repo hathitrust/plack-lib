@@ -286,9 +286,9 @@ sub log_test_failure {
         if ( scalar(@{ $self->data->{_log} }) > 0 ) {
             $previous_throttle_ts = Utils::Time::iso_Time('datetime', $self->data->{_log}->[-1]);
         }
-        Utils::Logger::__Log_string($$env{'psgix.config'}, 
+        Utils::Logger::__Log_string($self->request->env->{'psgix.config'}, 
             join("|",
-                $$env{REMOTE_ADDR},
+                $self->request->env->{REMOTE_ADDR},
                 Utils::Time::iso_Time('datetime', $self->data->{_ts}),
                 $previous_throttle_ts,
                 $self->client_idtype,
