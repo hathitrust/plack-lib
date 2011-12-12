@@ -7,12 +7,16 @@ use Debug::DUtils;
 use MdpConfig;
 use Utils;
 
+use Plack::Util::Accessor qw( 
+    app_name 
+);
+
 sub call {
     my($self, $env) = @_;
     
     local %ENV = (%ENV, %{ $env });
     
-    my $app_name = Debug::DUtils::___determine_app(); # $self->app_name;
+    my $app_name = $self->app_name;
     $$env{'psgix.app_name'} = $app_name;
     
     my $config = new MdpConfig(
