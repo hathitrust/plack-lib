@@ -93,7 +93,7 @@ sub setup_context {
     
     my $request = Plack::Request->new($env);
     $self->request($request);
-
+    
     unless ( $self->app_name ) {
         my $app_name = $request->env->{'psgix.app_name'};
         $self->app_name($app_name)
@@ -142,6 +142,9 @@ sub call {
 
     unless ( $allowed ) {
         $self->log_test_failure();
+    } else {
+        # clear this if $allowed
+        delete $self->data->{_stamp_ts};
     }
     
     $self->update_cache();
@@ -279,9 +282,9 @@ sub apply_debt_multiplier {
 sub log_test_failure {
     my ( $self ) = @_;
     $self->data->{_log} = [] unless ( ref($self->data->{_log}) );
-    my $is_newly_throttled = ( $self->data->{_until_ts} > $self->data->{_ts} );
+    my $is_newly_throttled = ! exists($self->data->{_stamp_ts});
     if ( $is_newly_throttled ) {
-
+        $self->data->{_stamp_ts} = $self->data->{_ts};
         my $previous_throttle_ts = '-';
         if ( scalar(@{ $self->data->{_log} }) > 0 ) {
             $previous_throttle_ts = Utils::Time::iso_Time('datetime', $self->data->{_log}->[-1]);
