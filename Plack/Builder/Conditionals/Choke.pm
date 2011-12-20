@@ -63,7 +63,7 @@ sub param {
             $check = 1 if ( $check );
         }
         if ( $not ) { $check = ! $check };
-        print STDERR "PARAM :: $key :: [$check] :: $$env{QUERY_STRING} :: $$env{HTTP_QUERY_STRING}\n";
+        ## print STDERR "PARAM :: $key :: [$check] :: $$env{QUERY_STRING} :: $$env{HTTP_QUERY_STRING}\n";
         return $check;
     }
 }
