@@ -1,4 +1,4 @@
-package Plack::Middleware::WAYFLess;
+package Plack::Middleware::SSO;
 use strict;
 use parent qw(Plack::Middleware);
 
@@ -10,23 +10,24 @@ use Plack::Response;
 sub call {
     my($self, $env) = @_;
     
-    if ( $$env{QUERY_STRING} =~ m,[?;&]auth:,i) {
-        my $wayfless_url;
+    if ( $$env{QUERY_STRING} =~ m,[?;&]signon=,i) {
+        my $redirect_url;
         
-        ( my $target_url = $$env{REQUEST_URI} ) =~ s,[;&]auth:([\w]+)=([^;&]+),,i;
+        ( my $target_url = $$env{REQUEST_URI} ) =~ s,[;&]signon=([^:]+):([^;&]+),,i;
         $target_url =~ s,/cgi/,/shcgi/,; $target_url =~ s,http://,https://,;
-        my ( $type, $idp_url ) = ( $$env{QUERY_STRING} =~ m,[;&]auth:([\w]+)=([^;&]+),i );
+        my ( $type, $signon_url ) = ( $$env{QUERY_STRING} =~ m,[;&]signon=([^:]+):([^;&]+),i );
         
-        $idp_url = uri_escape($idp_url);
+        $signon_url = uri_escape($signon_url);
         $target_url = uri_escape($target_url);
         
-        my ( $type, $idp_url ) = ( $1, $2 );
+        # handling of $type should be handled from an appropriate
+        # subclass
         if ( $type eq 'swle' ) {
-            $wayfless_url = qq{https://$$env{SERVER_NAME}/Shibboleth.sso/Login?entityID=$idp_url&target=$target_url};
+            $redirect_url = qq{https://$$env{SERVER_NAME}/Shibboleth.sso/Login?entityID=$signon_url&target=$target_url};
         }
         
         my $res = Plack::Response->new(302);
-        $res->redirect($wayfless_url);
+        $res->redirect($redirect_url);
         
         return $res->finalize;
         
