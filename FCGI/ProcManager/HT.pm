@@ -41,7 +41,7 @@ sub pm_post_dispatch {
 sub cleanup {
     my $pid = $$;
     my $suffix = shift;
-    my $expired = 120; # seconds
+    my $expired = 300; # seconds
 
     # regexp must match template in get_formatted_path()
     my $tmp_root = __get_root();
