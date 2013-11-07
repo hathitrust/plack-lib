@@ -6,6 +6,8 @@ use strict;
 use Exporter;
 use POSIX qw(:signal_h);
 
+use Utils::Extract;
+
 use constant DEFAULT_MAXREQUESTS => 1000;
 
 sub new {
@@ -36,41 +38,10 @@ sub pm_post_dispatch {
     }
 }
 
-### Copied from Utils::Extract
+### invoke cleanup from Utils::Extract
 
 sub cleanup {
-    my $pid = $$;
-    my $suffix = shift;
-    my $expired = 300; # seconds
-
-    # regexp must match template in get_formatted_path()
-    my $tmp_root = __get_root();
-    if (opendir(DIR, $tmp_root)) {
-        my @targets = grep(! /(^\.$|^\.\.$)/, readdir(DIR));
-        my $pattern = qr{.*?_${pid}__.*};
-        if ( $suffix ) { $pattern = qr{.*?_${pid}__[0-9]+_${suffix}} }
-        # my @rm_pid_targets = grep(/.*?_${pattern}__.*/, @targets);
-        my @rm_pid_targets = grep(/$pattern/, @targets);
-        foreach my $sd (@rm_pid_targets) {
-            system("rm", "-rf", "$tmp_root/$sd");
-        }
-
-        my $now = time();
-        foreach my $sd (@targets) {
-            my ($created) = ($sd =~ m,.*?__(\d+),);
-            next unless ( $created );
-            if (($now - $created) > $expired) {
-                system("rm", "-rf", "$tmp_root/$sd");
-            }
-        }
-    }
-    
-    closedir(DIR);
-}
-
-sub __get_root {
-    my $tmp_root = defined($ENV{'RAMDIR'}) ? $ENV{'RAMDIR'} : "/ram";
-    return $tmp_root;
+    Utils::Extract::__handle_EndBlock_cleanup();
 }
 
 END {
