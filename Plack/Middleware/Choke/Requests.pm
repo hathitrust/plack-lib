@@ -67,7 +67,7 @@ sub test {
     $self->data->{requests}->{debt} += 1 if ( $allowed );
 
     $self->headers->{'X-Choke-Allowed'} = $allowed;
-    $self->headers->{'X-Choke'} = 'requests';
+    $self->headers->{'X-Choke'} = $self->label;
     $self->headers->{'X-Choke-Now'} = UnixDate("epoch " . $self->now, "%Y-%m-%d %H:%M:%S");
     $self->headers->{'X-Choke-Until'} = UnixDate("epoch " . $self->data->{_until_ts}, "%Y-%m-%d %H:%M:%S") if ( $self->data->{_until_ts} );
     $self->headers->{'X-Choke-UntilEpoch'} = $self->data->{_until_ts} if ( $self->data->{_until_ts} );
@@ -89,7 +89,11 @@ sub test {
 sub apply_debt_multiplier {
     my ( $self, $debt_multiplier ) = @_;
     $self->data->{requests}->{debt} *= $debt_multiplier;
-    $self->update_cache();
+    $self->dirty(1);
+}
+
+sub label {
+    return 'requests';
 }
 
 

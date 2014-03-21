@@ -5,27 +5,33 @@ use base qw( Plack::Middleware::Choke::Requests );
 use Date::Manip;
 use Data::Dumper;
 use Plack::Request;
+use Plack::Util;
 
-sub test {
-    my ( $self, $env ) = @_;
+sub process_post_multiplier {
+    my ( $self, $res ) = @_;
 
-    # these feel darn hard coded with MediaHandler information
+    my $size = Plack::Util::header_get($res->[1], "X-HathiTrust-ImageSize");
+    if ( $size && $size =~ m,(\d+)x(\d+), ) {
+        my ( $width, $height ) = split(/x/, $size);
+        ## my $max = ( $w > $h ) ? $w : $h;
 
-    my $multiplier = 1.0;
-    if ( $self->request->param('size') ) {
-        # work with size
-        my $size = int($self->request->param('size')) || 1;
-        $multiplier *= ( 100 / $size );
-    } elsif ( $self->request->param('width') || $self->request->param('height') ) {
-        # work with height/width
-        my $dim = $self->request->param('width') || $self->request->param('height');
-        $dim = int($dim) || 680;
-        $multiplier *= ( 680 / $dim );
+        my $multiplier = 1.0;
+        $multiplier *= ( $width / 680.0 );
+
+        $self->data->{requests}->{debt} *= $multiplier;
+        $self->dirty(1);
+
+        # nobody needs to know this
+        $res->[1] = [ Plack::Util::header_remove($res->[1], "X-HathiTrust-ImageSize") ];
+
     }
 
-    $self->multiplier($multiplier * $self->multiplier);
-
-    return $self->SUPER::test($env);
+    return $self->SUPER::process_post_multiplier($res);
 }
+
+sub label {
+    return 'image';
+}
+
 
 1;

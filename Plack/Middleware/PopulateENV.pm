@@ -15,7 +15,7 @@ sub call {
     my($self, $env) = @_;
     
     local %ENV = (%ENV, %{ $env });
-    
+
     my $app_name = $self->app_name;
     $$env{'psgix.app_name'} = $app_name;
     
@@ -28,23 +28,8 @@ sub call {
     $$env{'psgix.config'} = $config;
     
     my $res = $self->app->($env);
+    return $res;
 
-    # # fix content length??
-    # if ( ref $res eq 'ARRAY' && ref($res->[2]) eq 'ARRAY' ) {
-    #     my $content_length = Plack::Util::header_get($res->[1], "Content-Length");
-    #     if ( $content_length && $content_length != length(join('', @{$res->[2]})) ) {
-    #         Plack::Util::header_set($res->[1], 'Content-Length', length(join('', @{$res->[2]})));
-    #     }
-    # }
-
-    return $res if ref $res eq 'ARRAY';
-
-    return sub {
-        my $respond = shift;
-
-        my $writer;
-        $res->(sub { return $writer = $respond->(@_) });
-    }
 }
 
 1;

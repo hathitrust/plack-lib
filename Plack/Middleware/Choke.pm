@@ -272,11 +272,27 @@ sub process_post_multiplier {
         }
         $self->apply_debt_multiplier($debt_multiplier);
     }
+
+    $self->update_cache() if ( $self->dirty );
+
+}
+
+sub dirty {
+    my $self = shift;
+    my ( $flag ) = @_;
+    if ( $flag ) {
+        $$self{dirty} = $flag;
+    }
+    return $$self{dirty};
 }
 
 sub apply_debt_multiplier {
     my ( $self, $debt_multiplier ) = @_;
     # NOOP
+}
+
+sub label {
+    return 'default';
 }
 
 sub log_test_failure {
