@@ -17,8 +17,6 @@ sub call {
         $redirect_url = uri_unescape($redirect_url);
         $redirect_url = ( ( $$env{SERVER_PORT} eq '443' ) ? 'https://' : 'http://' ) . $$env{SERVER_NAME} . $redirect_url;
 
-        print STDERR "REDIRECT: $redirect_url\n";
-
         my $res = Plack::Response->new(302);
         $res->redirect($redirect_url);
         
