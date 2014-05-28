@@ -62,10 +62,6 @@ sub test {
         $message = qq{Request throttled until : } . $self->data->{_until_ts};
     }
 
-    ## print STDERR "REQUESTS :: $allowed :: $tx_credit :: $delta :: " . $self->data->{requests}->{debt} . " << $max_debt :: $message\n";
-
-    $self->data->{requests}->{debt} += 1 if ( $allowed );
-
     $self->headers->{'X-Choke-Allowed'} = $allowed;
     $self->headers->{'X-Choke'} = $self->label;
     $self->headers->{'X-Choke-Now'} = UnixDate("epoch " . $self->now, "%Y-%m-%d %H:%M:%S");
@@ -86,6 +82,18 @@ sub test {
 
 }
 
+sub update_debt {
+    my ( $self, $res ) = @_;
+    my $incr = $self->get_increment($res);
+    my $last_debt = $self->data->{requests}->{debt};
+    $self->data->{requests}->{debt} += $incr;
+}
+
+sub get_increment {
+    my $self = shift;
+    return 1;
+}
+
 sub apply_debt_multiplier {
     my ( $self, $debt_multiplier ) = @_;
     $self->data->{requests}->{debt} *= $debt_multiplier;
@@ -95,6 +103,5 @@ sub apply_debt_multiplier {
 sub label {
     return 'requests';
 }
-
 
 1;

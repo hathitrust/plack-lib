@@ -7,9 +7,10 @@ use Data::Dumper;
 use Plack::Request;
 use Plack::Util;
 
-sub process_post_multiplier {
+sub get_increment {
     my ( $self, $res ) = @_;
 
+    my $value = 1;
     my $size = Plack::Util::header_get($res->[1], "X-HathiTrust-ImageSize");
     if ( $size && $size =~ m,(\d+)x(\d+), ) {
         my ( $width, $height ) = split(/x/, $size);
@@ -18,15 +19,14 @@ sub process_post_multiplier {
         my $multiplier = 1.0;
         $multiplier *= ( $width / 680.0 );
 
-        $self->data->{requests}->{debt} *= $multiplier;
-        $self->dirty(1);
+        $value *= $multiplier;
 
         # nobody needs to know this
         $res->[1] = [ Plack::Util::header_remove($res->[1], "X-HathiTrust-ImageSize") ];
 
-    }
+    }    
 
-    return $self->SUPER::process_post_multiplier($res);
+    return $value;
 }
 
 sub label {

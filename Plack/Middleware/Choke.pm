@@ -157,6 +157,10 @@ sub call {
     $env->{'psgix.choked'} = 1;
 
     my $res = $self->app->($env);
+
+    # now update debt
+    $self->update_debt($res);
+    $self->update_cache();
     
     if ( ref($res) eq 'ARRAY' ) {
         # the response_cb callback approach automatically 
@@ -243,6 +247,11 @@ sub post_process {
 sub update_cache {
     my ( $self ) = @_;
     $self->cache->Set($self->client_hash, $self->cache_key, $self->data, 1); # force save
+}
+
+sub update_debt {
+    my ( $self ) = @_;
+    # NOOP
 }
 
 sub process_post_multiplier {
