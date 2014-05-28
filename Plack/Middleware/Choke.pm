@@ -276,8 +276,8 @@ sub process_post_multiplier {
         my @tmp = split(/,/, (split(/;/, $in_copyright_header))[0]);
         $tmp[0] =~ s,user=,,;
         push @roles, join('_', @tmp) if ( scalar @tmp > 1 );
-        push @roles, $tmp[0];
-        
+        push @roles, @tmp;
+
         foreach my $role ( @roles ) {
             my $debt_multiplier_key = qq{choke_debt_multiplier_for_$role};
             if ( $config->has($debt_multiplier_key) ) {
