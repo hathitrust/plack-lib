@@ -158,15 +158,14 @@ sub call {
     $env->{'psgix.choked'} = 1;
 
     my $res = $self->app->($env);
-
-    # now update debt
-    $self->process_post_multiplier($res);
-    $self->update_debt($res);
-    $self->update_cache();
     
     if ( ref($res) eq 'ARRAY' ) {
         # the response_cb callback approach automatically 
         # chucks the content-length header; avoid if possible
+
+        $self->process_post_multiplier($res);
+        $self->update_debt($res);
+        $self->update_cache();
         
         $self->_add_headers($res);
         
@@ -177,6 +176,10 @@ sub call {
     $self->response_cb($res, sub {
         my $res = shift;
         if ( $res ) {
+
+            $self->process_post_multiplier($res);
+            $self->update_debt($res);
+            $self->update_cache();
 
             $self->_add_headers($res);
 
