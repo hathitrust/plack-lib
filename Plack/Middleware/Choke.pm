@@ -33,6 +33,7 @@ use Plack::Util::Accessor qw(
     response
     multiplier
     rate_multiplier
+    debt_multiplier
 );
 
 sub new {
@@ -52,7 +53,7 @@ sub new {
             $self->response->{filename} = $ENV{SDRROOT} . "/mdp-web/503_error.html";
         }
     }
-    
+
     $self;
 }
 
@@ -159,6 +160,7 @@ sub call {
     my $res = $self->app->($env);
 
     # now update debt
+    $self->process_post_multiplier($res);
     $self->update_debt($res);
     $self->update_cache();
     
@@ -166,7 +168,6 @@ sub call {
         # the response_cb callback approach automatically 
         # chucks the content-length header; avoid if possible
         
-        $self->process_post_multiplier($res);
         $self->_add_headers($res);
         
         $self->post_process($res->[2]);
@@ -177,7 +178,6 @@ sub call {
         my $res = shift;
         if ( $res ) {
 
-            $self->process_post_multiplier($res);
             $self->_add_headers($res);
 
             return sub {
@@ -261,11 +261,14 @@ sub process_post_multiplier {
     # format: X-HathiTrust-InCopyright: user=staff,superuser
     # assumes that any non-authorized access to copyright material
     # is handled by the wrapped app
+
+    $self->debt_multiplier(1);
+
     my $in_copyright_header = Plack::Util::header_get($res->[1], "X-HathiTrust-InCopyright");
     if ( defined($in_copyright_header) ) {
         my $config = $self->request->env->{'psgix.config'};
         
-        my $debt_multipler = $config->get(qq{choke_debt_multiplier_for_anyone});
+        my $debt_multiplier = $config->get(qq{choke_debt_multiplier_for_anyone});
         my @roles = ();
         my @tmp = split(/,/, (split(/;/, $in_copyright_header))[0]);
         $tmp[0] =~ s,user=,,;
@@ -279,11 +282,8 @@ sub process_post_multiplier {
                 last;
             }
         }
-        $self->apply_debt_multiplier($debt_multiplier);
+        $self->debt_multiplier($debt_multiplier);
     }
-
-    $self->update_cache() if ( $self->dirty );
-
 }
 
 sub dirty {

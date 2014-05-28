@@ -84,7 +84,7 @@ sub test {
 
 sub update_debt {
     my ( $self, $res ) = @_;
-    my $incr = $self->get_increment($res);
+    my $incr = $self->get_increment($res) * $self->debt_multiplier;
     my $last_debt = $self->data->{requests}->{debt};
     $self->data->{requests}->{debt} += $incr;
 }
