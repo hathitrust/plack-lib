@@ -16,20 +16,20 @@ use Digest::SHA qw(sha256_hex);
 
 use File::Slurp;
 
-use Plack::Util::Accessor qw( 
-    app_name 
-    key 
+use Plack::Util::Accessor qw(
+    app_name
+    key
     cache_key
-    credit_rate 
-    max_debt 
-    headers 
-    request 
-    client_identifier_sub 
+    credit_rate
+    max_debt
+    headers
+    request
+    client_identifier_sub
     cache
-    data 
-    client_identifier 
-    client_idtype 
-    client_hash 
+    data
+    client_identifier
+    client_idtype
+    client_hash
     response
     multiplier
     rate_multiplier
@@ -39,7 +39,7 @@ use Plack::Util::Accessor qw(
 sub new {
     my $class = shift;
     my $self = $class->SUPER::new(@_);
-    
+
     unless ( $self->response ) {
         $self->response({});
     }
@@ -91,10 +91,10 @@ sub setup_context {
     my ( $self, $env ) = @_;
 
     $self->headers({});
-    
+
     my $request = Plack::Request->new($env);
     $self->request($request);
-    
+
     unless ( $self->app_name ) {
         my $app_name = $request->env->{'psgix.app_name'};
         $self->app_name($app_name)
@@ -102,10 +102,10 @@ sub setup_context {
     unless ( $self->key ) {
         $self->key($self->app_name);
     }
-    
+
     $self->cache_key($self->app_name . "-" . $self->key);
     $self->cache($request->env->{'psgix.cache'});
-    
+
     if ( defined($request->env->{CHOKE_MAX_DEBT_MULTIPLIER}) ) {
         $self->multiplier($request->env->{CHOKE_MAX_DEBT_MULTIPLIER});
     } else {
@@ -121,12 +121,12 @@ sub setup_context {
 
 sub call {
     my ( $self, $env ) = @_;
-    
+
     my $allowed = 1; my $message;
-    
+
     $self->setup_context($env);
     $self->setup_client_identifier($self->request);
-    
+
     my $data = $self->cache->Get($self->client_hash, $self->cache_key);
     unless ( ref($data) ) {
         $data = { _ts => $self->now, _debug => 'NOT FOUND', _idtype => $self->client_idtype, _client_identifier => $self->client_identifier };
@@ -135,9 +135,9 @@ sub call {
     }
 
     $self->data($data);
-    
+
     ( $allowed, $message ) = $self->test($env);
-    
+
     # update timestamp
     $self->data->{_ts} = $self->now;
 
@@ -147,32 +147,32 @@ sub call {
         # clear this if $allowed
         delete $self->data->{_stamp_ts};
     }
-    
+
     $self->update_cache();
-    
+
     unless ( $allowed && ! $self->request->param('ping') ) {
         return $self->intercept_response($allowed);
     }
-    
+
     # avoid further processing by default choke policies
     $env->{'psgix.choked'} = 1;
 
     my $res = $self->app->($env);
-    
+
     if ( ref($res) eq 'ARRAY' ) {
-        # the response_cb callback approach automatically 
+        # the response_cb callback approach automatically
         # chucks the content-length header; avoid if possible
 
         $self->process_post_multiplier($res);
         $self->update_debt($res);
         $self->update_cache();
-        
+
         $self->_add_headers($res);
-        
+
         $self->post_process($res->[2]);
         return $res;
     }
-    
+
     $self->response_cb($res, sub {
         my $res = shift;
         if ( $res ) {
@@ -193,36 +193,36 @@ sub call {
             }
         }
     });
-    
+
 }
 
 sub intercept_response {
     my ( $self, $allowed ) = @_;
-    
+
     # the middleware can be "pinged" to check the status
     # of the request; these need to return a status of 200
 
-    # TODO: probably should return something other than the 
+    # TODO: probably should return something other than the
     # error documents.
-    
+
     my $code = $allowed ? 200 : 503;
     my $response = Plack::Response->new($code);
     my $response_headers = $response->headers;
-    
+
     # don't cache 503 messages
     $self->headers->{'Cache-Control'} = "max-age=0, no-store";
 
     $self->headers->{'Content-Type'} = $self->response->{content_type};
     $response->headers($self->headers);
-    
+
     my $content = read_file($self->response->{filename});
 
     my $request_url = $self->request->uri;
     $content =~ s,__REQUEST_URL__,$request_url,;
-        
+
     my $app_name = $self->app_name;
     $content =~ s,\./,/$app_name/common-web/,g;
-    
+
     my $choked_until;
     if ( $self->headers->{'X-Choke-UntilEpoch'} ) {
         $choked_until = $self->headers->{'X-Choke-UntilEpoch'} - time();
@@ -234,9 +234,9 @@ sub intercept_response {
         $choked_until = qq{ You may proceed in <span id="throttle-timeout">$choked_until $choked_until_units</span>.};
     }
     $content =~ s,___CHOKED_UNTIL___,$choked_until,;
-    
+
     $content =~ s,___MESSAGE___,$message,;
-    
+
     $response->body($content);
     return $response->finalize;
 }
@@ -259,7 +259,7 @@ sub update_debt {
 
 sub process_post_multiplier {
     my ( $self, $res ) = @_;
-    
+
     # look for X-HathiTrust-InCopyright header
     # format: X-HathiTrust-InCopyright: user=staff,superuser
     # assumes that any non-authorized access to copyright material
@@ -270,13 +270,15 @@ sub process_post_multiplier {
     my $in_copyright_header = Plack::Util::header_get($res->[1], "X-HathiTrust-InCopyright");
     if ( defined($in_copyright_header) ) {
         my $config = $self->request->env->{'psgix.config'};
-        
+
         my $debt_multiplier = $config->get(qq{choke_debt_multiplier_for_anyone});
-        my @roles = ();
         my @tmp = split(/,/, (split(/;/, $in_copyright_header))[0]);
         $tmp[0] =~ s,user=,,;
         push @roles, join('_', @tmp) if ( scalar @tmp > 1 );
         push @roles, @tmp;
+        my $usertype = shift @tmp;
+        my @roles = ( $usertype );
+        push @roles, map { $usertype . '_' . $_ } @tmp;
 
         foreach my $role ( @roles ) {
             my $debt_multiplier_key = qq{choke_debt_multiplier_for_$role};
@@ -317,7 +319,7 @@ sub log_test_failure {
         if ( scalar(@{ $self->data->{_log} }) > 0 ) {
             $previous_throttle_ts = Utils::Time::iso_Time('datetime', $self->data->{_log}->[-1]);
         }
-        Utils::Logger::__Log_string($self->request->env->{'psgix.config'}, 
+        Utils::Logger::__Log_string($self->request->env->{'psgix.config'},
             join("|",
                 $self->request->env->{REMOTE_ADDR},
                 Utils::Time::iso_Time('datetime', $self->data->{_ts}),
