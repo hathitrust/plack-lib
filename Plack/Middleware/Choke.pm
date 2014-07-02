@@ -267,11 +267,15 @@ sub process_post_multiplier {
 
     $self->debt_multiplier(1);
 
+    ## disabling fine-grained lookup pending usage reports
+    return;
+
     my $in_copyright_header = Plack::Util::header_get($res->[1], "X-HathiTrust-InCopyright");
     if ( defined($in_copyright_header) ) {
         my $config = $self->request->env->{'psgix.config'};
 
         my $debt_multiplier = $config->get(qq{choke_debt_multiplier_for_anyone});
+
         my @tmp = split(/,/, (split(/;/, $in_copyright_header))[0]);
         $tmp[0] =~ s,user=,,;
         push @roles, join('_', @tmp) if ( scalar @tmp > 1 );
