@@ -22,14 +22,14 @@ sub call {
             return;
         }
 
-        my $filename = $self->{$r->[0]};
-        $filename = $$env{'SDRROOT'} . '/mdp-web/production_error.html';
+        my $filename = $$env{'SDRROOT'} . '/' . $self->{$r->[0]};
+        ## $filename = $$env{'SDRROOT'} . '/mdp-web/production_error.html';
         my $template_ref = Utils::read_file($filename, 1);
         my $app_name = Debug::DUtils::___determine_app();
         $$template_ref =~ s,\./,/$app_name/common-web/,g;
-        
+
         $r->[2] = [ $$template_ref ];
-            
+
         my $h = Plack::Util::headers($r->[1]);
         $h->remove('Content-Length');
         $h->set('Content-Type', Plack::MIME->mime_type($filename));
