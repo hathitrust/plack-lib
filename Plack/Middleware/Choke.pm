@@ -25,6 +25,7 @@ use Plack::Util::Accessor qw(
     headers
     request
     client_identifier_sub
+    use_cache
     cache
     data
     client_identifier
@@ -52,6 +53,9 @@ sub new {
         } else {
             $self->response->{filename} = $ENV{SDRROOT} . "/mdp-web/503_error.html";
         }
+    }
+    unless ( $self->use_cache ) {
+        $self->use_cache('psgix.cache');
     }
 
     $self;
@@ -104,7 +108,7 @@ sub setup_context {
     }
 
     $self->cache_key($self->app_name . "-" . $self->key);
-    $self->cache($request->env->{'psgix.cache'});
+    $self->cache($request->env->{$self->use_cache});
 
     if ( defined($request->env->{CHOKE_MAX_DEBT_MULTIPLIER}) ) {
         $self->multiplier($request->env->{CHOKE_MAX_DEBT_MULTIPLIER});
