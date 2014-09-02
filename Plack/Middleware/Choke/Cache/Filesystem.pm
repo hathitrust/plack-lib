@@ -22,7 +22,7 @@ sub new {
     }
 
     unless ( $self->name ) {
-        $self->config_key("psgix.cache");
+        $self->name("psgix.cache");
     }
 
     $self;
