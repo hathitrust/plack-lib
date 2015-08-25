@@ -53,12 +53,24 @@ sub param {
     }
     $key = shift;
     my $value = shift;
+    my $max_number = shift;
+
     return sub {
         my $env = shift;
         my $request = Plack::Request->new($env);
+        my @tmp = $request->param($key);
         my $check = $request->param($key);
+
+        if ( defined $max_number ) {
+            return 0 if ( scalar @tmp > $max_number );
+        }
+
         if ( $value ) {
-            $check = $check eq $value;
+            if ( ref($value) eq 'Regexp' ) {
+                $check = $check =~ $value;
+            } else {
+                $check = $check eq $value;
+            }
         } else {
             $check = 1 if ( $check );
         }
