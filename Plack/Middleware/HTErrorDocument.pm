@@ -7,7 +7,7 @@ use Plack::Util;
 
 use HTTP::Status qw(is_error);
 use Utils;
-use Debug::DUtils;;
+use Debug::DUtils;
 
 sub call {
     my $self = shift;
@@ -23,17 +23,35 @@ sub call {
         }
 
         my $filename = $$env{'SDRROOT'} . '/' . $self->{$r->[0]};
-        ## $filename = $$env{'SDRROOT'} . '/mdp-web/production_error.html';
-        my $template_ref = Utils::read_file($filename, 1);
-        my $app_name = Debug::DUtils::___determine_app();
-        $$template_ref =~ s,\./,/$app_name/common-web/,g;
+        my ( $mime_type, $body ) = $self->read_error_file($filename);
 
-        $r->[2] = [ $$template_ref ];
+        $r->[2] = [ $$body ];
 
         my $h = Plack::Util::headers($r->[1]);
         $h->remove('Content-Length');
-        $h->set('Content-Type', Plack::MIME->mime_type($filename));
+        $h->set('Content-Type', $mime_type);
     });
+}
+
+sub read_error_file {
+  my ( $self, $filename ) = @_;
+  my $mime_type = Plack::MIME->mime_type($filename);
+  my $body;
+  if ( $mime_type =~ m,^text/, ) {
+    $body = Utils::read_file($filename, 1);
+    my $app_name = Debug::DUtils::___determine_app();
+    $$body =~ s,\./,/$app_name/common-web/,g;
+  } else {
+    open(my $in, $filename);
+    binmode($in);
+    my $tmp;
+    while ( <$in> ) {
+      $tmp .= $_;
+    }
+    close($in);
+    $body = \$tmp;
+  }
+  return ( $mime_type, $body );
 }
 
 1;
