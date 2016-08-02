@@ -16,14 +16,26 @@ sub call {
         ( my $target_url = $$env{REQUEST_URI} ) =~ s,[;&]signon=([^:]+):([^;&]+),,i;
         $target_url =~ s,/cgi/,/shcgi/,; $target_url =~ s,http://,https://,;
         my ( $type, $signon_url ) = ( $$env{QUERY_STRING} =~ m,[;&]signon=([^:]+):([^;&]+),i );
-        
+
         $signon_url = uri_escape($signon_url);
         $target_url = uri_escape($target_url);
         
         # handling of $type should be handled from an appropriate
         # subclass
         if ( $type eq 'swle' ) {
-            $redirect_url = qq{https://$$env{SERVER_NAME}/Shibboleth.sso/Login?entityID=$signon_url&target=$target_url};
+            ### RRE - this will be removed when HathiTrust only uses Shibboleth
+            if ( $signon_url eq uri_escape('https://shibboleth.umich.edu/idp/shibboleth') ) {
+                $target_url = uri_unescape($target_url);
+                $target_url =~ s,/shcgi/,/cgi/,;
+                $target_url = qq{https://$$env{SERVER_NAME}} . $target_url;
+                if ( $$env{REMOTE_USER} ) {
+                    $redirect_url = $target_url;
+                } else {
+                    $redirect_url = qq{https://weblogin.umich.edu/?cosign-$$env{HTTP_HOST}&$target_url};
+                }
+            } else {
+                $redirect_url = qq{https://$$env{SERVER_NAME}/Shibboleth.sso/Login?entityID=$signon_url&target=$target_url};
+            }
         }
         
         my $res = Plack::Response->new(302);
