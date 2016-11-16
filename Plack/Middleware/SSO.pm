@@ -24,7 +24,8 @@ sub call {
         # subclass
         if ( $type eq 'swle' ) {
             ### RRE - this will be removed when HathiTrust only uses Shibboleth
-            if ( $signon_url eq uri_escape('https://shibboleth.umich.edu/idp/shibboleth') ) {
+            my $is_cosign_active = ( defined $ENV{HT_IS_COSIGN_STILL_HERE} && $ENV{HT_IS_COSIGN_STILL_HERE} eq 'yes' );
+            if ( $signon_url eq uri_escape('https://shibboleth.umich.edu/idp/shibboleth') && $is_cosign_active ) {
                 $target_url = uri_unescape($target_url);
                 $target_url =~ s,/shcgi/,/cgi/,;
                 $target_url = qq{https://$$env{SERVER_NAME}} . $target_url;
