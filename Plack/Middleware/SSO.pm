@@ -12,9 +12,11 @@ sub call {
     
     if ( $$env{QUERY_STRING} =~ m,[?;&]signon=,i) {
         my $redirect_url;
+        my $is_cosign_active = ( defined $ENV{HT_IS_COSIGN_STILL_HERE} && $ENV{HT_IS_COSIGN_STILL_HERE} eq 'yes' );
         
         ( my $target_url = $$env{REQUEST_URI} ) =~ s,[;&]signon=([^:]+):([^;&]+),,i;
-        $target_url =~ s,/cgi/,/shcgi/,; $target_url =~ s,http://,https://,;
+        $target_url =~ s,/cgi/,/shcgi/, if ( $is_cosign_active );
+        $target_url =~ s,http://,https://,;
         my ( $type, $signon_url ) = ( $$env{QUERY_STRING} =~ m,[;&]signon=([^:]+):([^;&]+),i );
 
         $signon_url = uri_escape($signon_url);
@@ -24,7 +26,6 @@ sub call {
         # subclass
         if ( $type eq 'swle' ) {
             ### RRE - this will be removed when HathiTrust only uses Shibboleth
-            my $is_cosign_active = ( defined $ENV{HT_IS_COSIGN_STILL_HERE} && $ENV{HT_IS_COSIGN_STILL_HERE} eq 'yes' );
             if ( $signon_url eq uri_escape('https://shibboleth.umich.edu/idp/shibboleth') && $is_cosign_active ) {
                 $target_url = uri_unescape($target_url);
                 $target_url =~ s,/shcgi/,/cgi/,;
