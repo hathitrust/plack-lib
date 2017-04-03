@@ -131,17 +131,10 @@ sub call {
     $self->setup_context($env);
     $self->setup_client_identifier($self->request);
 
-    my $data = $self->cache->Get($self->client_hash, $self->cache_key);
-    unless ( ref($data) ) {
-        $data = { _ts => $self->now, _debug => 'NOT FOUND', _idtype => $self->client_idtype, _client_identifier => $self->client_identifier };
-    } else {
-        $$data{_debug} = "LOADED: " . scalar localtime;
-    }
-
-    $self->data($data);
+    $self->load_cache();
 
     ( $allowed, $message ) = $self->test($env);
-
+    
     # update timestamp
     $self->data->{_ts} = $self->now;
 
@@ -162,6 +155,12 @@ sub call {
     $env->{'psgix.choked'} = 1;
 
     my $res = $self->app->($env);
+
+    # reload the data after the calling to capture any updates
+    # while app() was running
+    $self->load_cache();
+
+    my $seq = $self->request->param('seq');
 
     if ( ref($res) eq 'ARRAY' ) {
         # the response_cb callback approach automatically
@@ -249,6 +248,17 @@ sub post_process {
     my ( $self, $chunk ) = @_;
     # NOOP
     return $chunk;
+}
+
+sub load_cache {
+    my ( $self ) = @_;
+    my $data = $self->cache->Get($self->client_hash, $self->cache_key);
+    unless ( ref($data) ) {
+        $data = { _ts => $self->now, _debug => 'NOT FOUND', _idtype => $self->client_idtype, _client_identifier => $self->client_identifier };
+    } else {
+        $$data{_debug} = "LOADED: " . scalar localtime;
+    }
+    $self->data($data);
 }
 
 sub update_cache {
