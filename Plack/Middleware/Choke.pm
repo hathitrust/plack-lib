@@ -281,32 +281,72 @@ sub process_post_multiplier {
 
     $self->debt_multiplier(1);
 
-    ## disabling fine-grained lookup pending usage reports
+    my $user_header = Plack::Util::header_get($res->[1], "X-HathiTrust-User");
+    return unless ( $user_header );
+
+    my $config = $self->request->env->{'psgix.config'};
+    my $debt_multiplier = $config->get(qq{choke_debt_multiplier_for_anyone});
+    my $debt_multiplier_key = 'choke_debt_multiplier_for_' . $user_header;
+    $debt_multiplier_key =~ s,(usertype|role)=,,g; $debt_multiplier_key =~ s,;,_,g;
+    if ( $config->has($debt_multiplier_key) ) {
+        $debt_multiplier = $config->get($debt_multiplier_key);
+    }
+    $self->debt_multiplier($debt_multiplier);
+    Plack::Util::header_remove($res->[1], 'X-HathiTrust-User');
+
     return;
 
-    my $in_copyright_header = Plack::Util::header_get($res->[1], "X-HathiTrust-InCopyright");
-    if ( defined($in_copyright_header) ) {
+    # ## disabling fine-grained lookup pending usage reports
+    # return;
+
+    if(0) {
+        my $in_copyright_header = Plack::Util::header_get($res->[1], "X-HathiTrust-InCopyright");
+        if ( defined($in_copyright_header) ) {
+            my $config = $self->request->env->{'psgix.config'};
+
+            my $debt_multiplier = $config->get(qq{choke_debt_multiplier_for_anyone});
+
+            my @tmp = split(/,/, (split(/;/, $in_copyright_header))[0]);
+            $tmp[0] =~ s,user=,,;
+            push @roles, join('_', @tmp) if ( scalar @tmp > 1 );
+            push @roles, @tmp;
+            my $usertype = shift @tmp;
+            my @roles = ( $usertype );
+            push @roles, map { $usertype . '_' . $_ } @tmp;
+
+            foreach my $role ( @roles ) {
+                my $debt_multiplier_key = qq{choke_debt_multiplier_for_$role};
+                if ( $config->has($debt_multiplier_key) ) {
+                    $debt_multiplier = $config->get($debt_multiplier_key);
+                    print STDERR "AHOY CHECKING $role : $debt_multiplier\n";
+                    last;
+                }
+            }
+            $self->debt_multiplier($debt_multiplier);
+        }        
+    }
+
+    if(0) {
         my $config = $self->request->env->{'psgix.config'};
-
+        my $user_header = Plack::Util::header_get($res->[1], "X-HathiTrust-User");
         my $debt_multiplier = $config->get(qq{choke_debt_multiplier_for_anyone});
+        if ($user_header) {
+            my %tmp = ();
+            foreach my $kv ( split(/;/, $user_header) ) {
+                my ( $k, $v ) = split(/=/, $kv);
+                $tmp{$k} = $v;
+            }
 
-        my @tmp = split(/,/, (split(/;/, $in_copyright_header))[0]);
-        $tmp[0] =~ s,user=,,;
-        push @roles, join('_', @tmp) if ( scalar @tmp > 1 );
-        push @roles, @tmp;
-        my $usertype = shift @tmp;
-        my @roles = ( $usertype );
-        push @roles, map { $usertype . '_' . $_ } @tmp;
-
-        foreach my $role ( @roles ) {
-            my $debt_multiplier_key = qq{choke_debt_multiplier_for_$role};
+            my $debt_multiplier_key = 'choke_debt_multiplier_for_' . $tmp{usertype} . '_' . $tmp{role};
             if ( $config->has($debt_multiplier_key) ) {
                 $debt_multiplier = $config->get($debt_multiplier_key);
-                last;
             }
+
+            Plack::Util::header_remove($res->[1], 'X-HathiTrust-User');
         }
         $self->debt_multiplier($debt_multiplier);
     }
+
 }
 
 sub dirty {
