@@ -22,7 +22,7 @@ sub get_increment {
         $value *= $multiplier;
 
         # nobody needs to know this
-        $res->[1] = [ Plack::Util::header_remove($res->[1], "X-HathiTrust-ImageSize") ];
+        Plack::Util::header_remove($res->[1], 'X-HathiTrust-ImageSize');
 
     }    
 
