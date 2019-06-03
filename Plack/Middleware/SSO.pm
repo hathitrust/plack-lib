@@ -9,20 +9,20 @@ use Plack::Response;
 
 sub call {
     my($self, $env) = @_;
-    
-    if ( $$env{QUERY_STRING} =~ m,[?;&]signon=,i) {
+
+    if ( $$env{QUERY_STRING} =~ m,(?:^|[;&])signon=,i) {
         my $redirect_url;
         my $is_cosign_active = ( defined $ENV{HT_IS_COSIGN_STILL_HERE} && $ENV{HT_IS_COSIGN_STILL_HERE} eq 'yes' );
         
-        ( my $target_url = $$env{REQUEST_URI} ) =~ s,[;&]signon=([^:]+):([^;&]+),,i;
+        ( my $target_url = $$env{REQUEST_URI} ) =~ s,[\?;&]signon=([^:]+):([^;&]+),,i;
         $target_url =~ s,/cgi/,/shcgi/, if ( $is_cosign_active );
         $target_url =~ s,http://,https://,;
-        my ( $type, $signon_url ) = ( $$env{QUERY_STRING} =~ m,[;&]signon=([^:]+):([^;&]+),i );
+        my ( $type, $signon_url ) = ( $$env{QUERY_STRING} =~ m,(?:^|[;&])signon=([^:]+):([^;&]+),i );
 
         if ( $$env{REMOTE_USER} && $$env{Shib_Identity_Provider} eq $signon_url ) {
             # we don't need to redirect
             $$env{REQUEST_URI} = $target_url;
-            $$env{QUERY_STRING} =~ s,[;&]signon=([^:]+):([^;&]+),,i;
+            $$env{QUERY_STRING} =~ s,(?:^|[;&])signon=([^:]+):([^;&]+),,i;
         } else {
 
             $signon_url = uri_escape($signon_url);
@@ -45,7 +45,7 @@ sub call {
                     $redirect_url = qq{https://$$env{SERVER_NAME}/Shibboleth.sso/Login?entityID=$signon_url&target=$target_url};
                 }
             }
-            
+
             my $res = Plack::Response->new(302);
             $res->redirect($redirect_url);
             
