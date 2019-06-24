@@ -17,7 +17,11 @@ sub get_increment {
         ## my $max = ( $w > $h ) ? $w : $h;
 
         my $multiplier = 1.0;
-        $multiplier *= ( $width / 680.0 );
+
+        my $referer = $self->request ? $self->request->referer : '';
+        unless ( $referer =~ m,\.hathitrust.org/, ) {
+            $multiplier *= ( $width / 680.0 );
+        }
 
         $value *= $multiplier;
 
