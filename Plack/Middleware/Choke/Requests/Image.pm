@@ -19,8 +19,12 @@ sub get_increment {
         my $multiplier = 1.0;
 
         my $referer = $self->request ? $self->request->referer : '';
-        unless ( $referer =~ m,\.hathitrust.org/, ) {
+        unless ( $referer =~ m,\.hathitrust.org/, && $width >= 680 ) {
             $multiplier *= ( $width / 680.0 );
+        }
+
+        if ( $referer =~ m,babel\.hathitrust.org/, && $referer =~ m,view=2up, ) {
+            $multiplier *= 0.5;
         }
 
         $value *= $multiplier;
