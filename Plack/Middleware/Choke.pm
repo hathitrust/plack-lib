@@ -35,6 +35,7 @@ use Plack::Util::Accessor qw(
     multiplier
     rate_multiplier
     debt_multiplier
+    missing_referer_debt_multiplier
 );
 
 sub new {
@@ -120,6 +121,10 @@ sub setup_context {
         $self->rate_multiplier($request->env->{CHOKE_RATE_MULTIPLIER});
     } else {
         $self->rate_multiplier(1);
+    }
+
+    unless( $self->missing_referer_debt_multiplier ) {
+        $self->missing_referer_debt_multiplier(1);
     }
 }
 
