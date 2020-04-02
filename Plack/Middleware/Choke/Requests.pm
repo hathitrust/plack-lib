@@ -84,7 +84,10 @@ sub test {
 
 sub update_debt {
     my ( $self, $res ) = @_;
-    my $incr = $self->get_increment($res) * $self->debt_multiplier * $self->missing_referer_debt_multiplier;
+    my $incr = $self->get_increment($res) * $self->debt_multiplier;
+    unless ( $self->request && $self->request->referer ) {
+        $incr *= $self->missing_referer_debt_multiplier;
+    }
     my $last_debt = $self->data->{requests}->{debt};
     $self->data->{requests}->{debt} += $incr;
 }
