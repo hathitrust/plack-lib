@@ -19,7 +19,7 @@ sub call {
         $target_url =~ s,http://,https://,;
         my ( $type, $signon_url ) = ( $$env{QUERY_STRING} =~ m,(?:^|[;&])signon=([^:]+):([^;&]+),i );
 
-        if ( $$env{REMOTE_USER} && $$env{Shib_Identity_Provider} eq $signon_url ) {
+        if ( $$env{REMOTE_USER} && ( $$env{Shib_Identity_Provider} eq $signon_url || $signon_url eq 'wayf' ) ) {
             # we don't need to redirect
             $$env{REQUEST_URI} = $target_url;
             $$env{QUERY_STRING} =~ s,(?:^|[;&])signon=([^:]+):([^;&]+),,i;
@@ -30,7 +30,10 @@ sub call {
             
             # handling of $type should be handled from an appropriate
             # subclass
-            if ( $type eq 'swle' ) {
+            if ( $signon_url eq 'wayf' ) {
+                $redirect_url = qq{https://$$env{SERVER_NAME}/cgi/wayf?target=$target_url};
+            }
+            elsif ( $type eq 'swle' ) {
                 ### RRE - this will be removed when HathiTrust only uses Shibboleth
                 if ( $signon_url eq uri_escape('https://shibboleth.umich.edu/idp/shibboleth') && $is_cosign_active ) {
                     $target_url = uri_unescape($target_url);
