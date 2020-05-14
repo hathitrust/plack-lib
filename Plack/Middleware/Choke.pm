@@ -36,6 +36,7 @@ use Plack::Util::Accessor qw(
     rate_multiplier
     debt_multiplier
     missing_referer_debt_multiplier
+    is_debugging
 );
 
 sub new {
@@ -126,6 +127,8 @@ sub setup_context {
     unless( $self->missing_referer_debt_multiplier ) {
         $self->missing_referer_debt_multiplier(1);
     }
+
+    $self->is_debugging($self->request->param('debug') =~ m,choked,);
 }
 
 sub call {
@@ -151,6 +154,10 @@ sub call {
     }
 
     $self->update_cache();
+
+    if ( $self->is_debugging() ) {
+        $allowed = 0;
+    }
 
     unless ( $allowed && ! $self->request->param('ping') ) {
         return $self->intercept_response($allowed);
@@ -232,7 +239,7 @@ sub intercept_response {
     $content =~ s,\./,/$app_name/common-web/,g;
 
     my $choked_until;
-    if ( $self->headers->{'X-Choke-UntilEpoch'} ) {
+    if ( $self->headers->{'X-Choke-UntilEpoch'} || $self->is_debugging() ) {
         $choked_until = $self->headers->{'X-Choke-UntilEpoch'} - time();
         my $choked_until_units = "seconds";
         if ( $choked_until > 120 ) {
@@ -241,9 +248,27 @@ sub intercept_response {
         }
         $choked_until = qq{ You may proceed in <span id="throttle-timeout">$choked_until $choked_until_units</span>.};
     }
+
     $content =~ s,___CHOKED_UNTIL___,$choked_until,;
 
     $content =~ s,___MESSAGE___,$message,;
+
+    my $in_copyright = 0;
+    my $id = $self->request->param('id');
+    my $cookies = $self->request->cookies;
+    if ( ref($cookies) && $$cookies{HTexpiration} ) {
+        require JSON::XS;
+        my $values;
+        eval {
+            $values = JSON::XS::decode_json($$cookies{HTexpiration});
+            $in_copyright = ( defined $$values{$id} && $$values{$id} > 0 );
+        };    
+    }
+
+    if ( $in_copyright ) {
+        my $photocopier_message = q{<p>The copyright law of the United States (Title 17, U.S. Code) governs the making of reproductions of copyrighted material. Under certain conditions specified in the law, libraries and archives are authorized to furnish a reproduction. One of these specific conditions is that the reproduction is not to be “used for any purpose other than private study, scholarship, or research.” If a user makes a request for, or later uses, a reproduction for purposes in excess of “fair use,” that user may be liable for copyright infringement.</p>};
+        $content =~ s,<!-- PHOTOCOPIER_USAGE -->,$photocopier_message,;
+    }
 
     $response->body($content);
     return $response->finalize;
@@ -286,16 +311,41 @@ sub process_post_multiplier {
 
     $self->debt_multiplier(1);
 
+
     my $user_header = Plack::Util::header_get($res->[1], "X-HathiTrust-User");
     return unless ( $user_header );
 
     my $config = $self->request->env->{'psgix.config'};
     my $debt_multiplier = $config->get(qq{choke_debt_multiplier_for_anyone});
-    my $debt_multiplier_key = 'choke_debt_multiplier_for_' . $user_header;
-    $debt_multiplier_key =~ s,(usertype|role)=,,g; $debt_multiplier_key =~ s,;,_,g;
-    if ( $config->has($debt_multiplier_key) ) {
-        $debt_multiplier = $config->get($debt_multiplier_key);
+
+    my $hash = { split(/[=;]/, $user_header) };
+    my @possibles = (
+        join('_', $$hash{usertype}, $$hash{role}),
+        join('_', $$hash{usertype}, $$hash{role}, $self->app_name, $self->key),
+        join('_', $$hash{usertype}, $$hash{role}, $$hash{access}),
+        join('_', $$hash{usertype}, $$hash{role}, $$hash{access}, $self->app_name, $self->key),
+    );
+
+    foreach my $base ( reverse @possibles ) {
+        my $key = 'choke_debt_multiplier_for_' . $base;
+        if ( $config->has($key) ) {
+            $debt_multiplier = $config->get($key);
+            last;
+        }
     }
+
+    if ( $debt_multiplier =~ m,/, ) {
+        # fractional multiplier
+        my $fraction;
+        ( $fraction, $debt_multiplier ) = split('/', $debt_multiplier);
+        my $check = $self->data->{requests}->{debt} * $fraction;
+        if ( $check < $debt_multiplier ) {
+            $debt_multiplier = 1.0;
+        } else {
+            $debt_multiplier *= $check;
+        }
+    }
+
     $self->debt_multiplier($debt_multiplier);
     Plack::Util::header_remove($res->[1], 'X-HathiTrust-User');
 }
