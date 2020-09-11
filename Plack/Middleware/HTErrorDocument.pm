@@ -60,7 +60,7 @@ __END__
 
 =head1 NAME
 
-Plack::Middleware::ErrorDocument - Set Error Document based on HTTP status code
+Plack::Middleware::HTErrorDocument - Set Error Document based on HTTP status code
 
 =head1 SYNOPSIS
 
@@ -68,7 +68,7 @@ Plack::Middleware::ErrorDocument - Set Error Document based on HTTP status code
   use Plack::Builder;
 
   builder {
-      enable "Plack::Middleware::ErrorDocument",
+      enable "Plack::Middleware::HTErrorDocument",
           500 => '/uri/errors/500.html', 404 => '/uri/errors/404.html',
           subrequest => 1;
       $app;
@@ -76,9 +76,7 @@ Plack::Middleware::ErrorDocument - Set Error Document based on HTTP status code
 
 =head1 DESCRIPTION
 
-Plack::Middleware::ErrorDocument allows you to customize error screen
-by setting paths (file system path or URI path) of error pages per
-status code.
+Based on Plack::Middleware::ErrorDocument
 
 =head1 CONFIGURATIONS
 
@@ -104,13 +102,5 @@ assuming that's when you probably maintain database etc. but serves
 logic there like logging or doing suggestions.
 
 When using a subrequest, the subrequest should return a regular '200' response.
-
-=back
-
-=head1 AUTHOR
-
-Tatsuhiko Miyagawa
-
-=head1 SEE ALSO
 
 =cut

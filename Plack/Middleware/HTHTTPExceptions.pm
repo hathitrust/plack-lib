@@ -56,7 +56,7 @@ __END__
 
 =head1 NAME
 
-Plack::Middleware::HTTPExceptions - Catch HTTP exceptions
+Plack::Middleware::HTHTTPExceptions - Catch HTTP exceptions
 
 =head1 SYNOPSIS
 
@@ -74,49 +74,6 @@ Plack::Middleware::HTTPExceptions - Catch HTTP exceptions
 
 =head1 DESCRIPTION
 
-Plack::Middleware::HTTPExceptions is a PSGI middleware component to
-catch exceptions from applications that can be translated into HTTP
-status codes.
-
-Your application is supposed to throw an object that implements a
-C<code> method which returns the HTTP status code, such as 501 or
-404. This middleware catches them and creates a valid response out of
-the code. If the C<code> method returns a code that is not an HTTP
-redirect or error code (3xx, 4xx, or 5xx), the exception will be
-rethrown.
-
-The exception object may also implement C<as_string> or overload
-stringification to represent the text of the error. The text defaults to
-the status message of the error code, such as I<Service Unavailable> for
-C<503>.
-
-Finally, the exception object may implement C<as_psgi>, and the result
-of this will be returned directly as the PSGI response.
-
-If the code is in the 3xx range and the exception implements the 'location'
-method (HTTP::Exception::3xx does), the Location header will be set in the
-response, so you can do redirects this way.
-
-There are CPAN modules L<HTTP::Exception> and L<HTTP::Throwable>, and
-they are perfect to throw from your application to let this middleware
-catch and display, but you can also implement your own exception class
-to throw.
-
-If the thrown exception is not an object that implements either a
-C<code> or an C<as_psgi> method, a 500 error will be returned, and the
-exception is printed to the psgi.errors stream.
-Alternatively, you can pass a true value for the C<rethrow> parameter
-for this middleware, and the exception will instead be rethrown. This is
-enabled by default when C<PLACK_ENV> is set to C<development>, so that
-the L<StackTrace|Plack::Middleware::StackTrace> middleware can catch it
-instead.
-
-=head1 AUTHOR
-
-Tatsuhiko Miyagawa
-
-=head1 SEE ALSO
-
-paste.httpexceptions L<HTTP::Exception> L<HTTP::Throwable>
+Based on Plack::Middleware::HTHTTPExceptions.
 
 =cut

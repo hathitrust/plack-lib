@@ -9,8 +9,6 @@ use Plack::Request;
 sub test {
     my ( $self, $env ) = @_;
 
-    ## print STDERR Dumper($self) . "\n";
-    
     my $delta = ( $self->now - $self->data->{'ts'} );
     my $allowed = 1; my $message;
 
@@ -54,18 +52,8 @@ sub test {
     $self->headers->{'X-Choke-Credit'} = qq{[$seq]};
     $self->headers->{'X-Choke-Ping'} = $request->param('ping');
     
-    print STDERR "ER: $allowed\n";
     return ( $allowed, $message );
     
 }
-
-# sub post_process {
-#     my ( $self, $headers, $res ) = @_;
-#     my $content_length = Plack::Util::header_get( $res->[1], 'Content-length');
-#     print STDERR "POST: $content_length\n";
-#     $self->data->{bytes_debt} += $content_length;
-#     $headers{'X-BytesLimit-Debt'} = $self->data->{bytes_debt};
-#     $self->cache->update({ -key => $self->cache_key, -value => $self->data });
-# }
 
 1;
