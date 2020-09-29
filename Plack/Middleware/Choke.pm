@@ -37,6 +37,7 @@ use Plack::Util::Accessor qw(
     debt_multiplier
     missing_referer_debt_multiplier
     is_debugging
+    is_disabled
 );
 
 sub new {
@@ -51,13 +52,18 @@ sub new {
     }
     unless ( $self->response->{filename} ) {
         if ( $self->response->{content_type} eq 'image/jpeg' ) {
-            $self->response->{filename} = $ENV{SDRROOT} . "/mdp-web/graphics/503_image_distorted.jpg";
+            $self->response->{filename} = $ENV{SDRROOT} . "/mdp-web/graphics/429_image_distorted.jpg";
         } else {
-            $self->response->{filename} = $ENV{SDRROOT} . "/mdp-web/503_error.html";
+            $self->response->{filename} = $ENV{SDRROOT} . "/mdp-web/429_error.html";
         }
     }
     unless ( $self->use_cache ) {
         $self->use_cache('psgix.cache');
+    }
+
+    unless ( defined $self->key && defined $self->credit_rate ) {
+        # no choke config is defined, so 
+        $self->is_disabled(1);
     }
 
     $self;
@@ -135,6 +141,9 @@ sub call {
     my ( $self, $env ) = @_;
 
     my $allowed = 1; my $message;
+
+    # short circuit test 
+    return $self->app->($env) if ( $self->is_disabled );
 
     $self->setup_context($env);
     $self->setup_client_identifier($self->request);
@@ -220,11 +229,11 @@ sub intercept_response {
     # TODO: probably should return something other than the
     # error documents.
 
-    my $code = $allowed ? 200 : 503;
+    my $code = $allowed ? 200 : 429;
     my $response = Plack::Response->new($code);
     my $response_headers = $response->headers;
 
-    # don't cache 503 messages
+    # don't cache 429 messages
     $self->headers->{'Cache-Control'} = "max-age=0, no-store";
 
     $self->headers->{'Content-Type'} = $self->response->{content_type};
