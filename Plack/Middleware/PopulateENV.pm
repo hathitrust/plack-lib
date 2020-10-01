@@ -16,6 +16,10 @@ sub call {
     
     local %ENV = (%ENV, %{ $env });
 
+    foreach my $key ( keys %ENV ) {
+        $$env{$key} = $ENV{$key} unless ( defined $$env{$key} );
+    }
+
     my $app_name = $self->app_name;
     $$env{'psgix.app_name'} = $app_name;
     
