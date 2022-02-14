@@ -321,9 +321,9 @@ sub process_post_multiplier {
     $self->debt_multiplier(1);
 
 
-    my $user_header = Plack::Util::header_get($res->[1], "X-HathiTrust-User");
+    my $user_header = Plack::Util::header_get( $res->[1], "X-HathiTrust-User" );
     return unless ( $user_header );
-
+    
     my $config = $self->request->env->{'psgix.config'};
     my $debt_multiplier = $config->get(qq{choke_debt_multiplier_for_anyone});
 
@@ -334,7 +334,7 @@ sub process_post_multiplier {
         join('_', $$hash{usertype}, $$hash{role}, $$hash{access}),
         join('_', $$hash{usertype}, $$hash{role}, $$hash{access}, $self->app_name, $self->key),
     );
-
+    
     foreach my $base ( reverse @possibles ) {
         my $key = 'choke_debt_multiplier_for_' . $base;
         if ( $config->has($key) ) {
